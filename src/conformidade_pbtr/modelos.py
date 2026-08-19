@@ -35,6 +35,17 @@ class Categoria(StrEnum):
     ESTRUTURA = "estrutura"
 
 
+class Origem(StrEnum):
+    """Como o achado foi produzido.
+
+    Separar as duas origens no relatório é o que impede que uma sugestão não
+    reprodutível seja lida com o mesmo peso de uma verificação exata.
+    """
+
+    DETERMINISTICO = "deterministico"   # regra, cálculo ou casamento de padrão
+    IA = "ia"                           # revisão pelo agente que chamou o MCP
+
+
 # ---------------------------------------------------------------- documento
 
 @dataclass
@@ -98,12 +109,14 @@ class Achado:
     encontrado: str = ""
     orientacao: str = ""
     fundamento: str = ""
+    origem: Origem = Origem.DETERMINISTICO
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["categoria"] = self.categoria.value
         d["status"] = self.status.value
         d["severidade"] = self.severidade.value
+        d["origem"] = self.origem.value
         return d
 
 
@@ -117,7 +130,8 @@ class Resumo:
     verificar_manual: int = 0
     erros_numeracao: int = 0
     erros_tabela: int = 0
-    erros_ortografia: int = 0
+    erros_ortografia: int = 0          # regras determinísticas
+    sugestoes_ia: int = 0              # revisão pelo agente
     indice_conformidade: float = 0.0   # 0..100, ponderado por severidade
 
     def to_dict(self) -> dict[str, Any]:
@@ -133,8 +147,12 @@ class Relatorio:
     versao_checklist: str = ""
     avisos: list[str] = field(default_factory=list)
 
-    def por_categoria(self, cat: Categoria) -> list[Achado]:
-        return [a for a in self.achados if a.categoria == cat]
+    def por_categoria(self, cat: Categoria, origem: Origem | None = None) -> list[Achado]:
+        return [
+            a
+            for a in self.achados
+            if a.categoria == cat and (origem is None or a.origem == origem)
+        ]
 
     def pendencias(self) -> list[Achado]:
         ordem = {Status.NAO_CONFORME: 0, Status.ATENCAO: 1, Status.VERIFICAR_MANUAL: 2}

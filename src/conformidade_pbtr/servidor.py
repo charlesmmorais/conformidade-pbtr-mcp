@@ -1,12 +1,16 @@
 """Servidor MCP — Conformidade de Projetos Básicos e Termos de Referência.
 
-Tools expostas:
-  analisar_conformidade   análise completa (checklist + numeração + tabelas + ortografia)
+Fluxo principal, em três passos:
+  1. analisar_conformidade      verificações determinísticas
+  2. obter_texto_para_revisao   entrega o texto ao agente, que revisa o português
+  3. registrar_revisao_textual  recebe os apontamentos e emite os relatórios
+
+Tools auxiliares:
   verificar_numeracao     apenas a numeração hierárquica
   validar_tabelas         apenas tabelas, aritmética e valores
-  revisar_ortografia      apenas a revisão textual pt-BR
+  revisar_ortografia      regras determinísticas + texto segmentado
   extrair_estrutura       sumário estrutural do PDF (diagnóstico de extração)
-  consultar_checklist     consulta as regras do roteiro [TI]
+  consultar_checklist     consulta as regras do checklist
   gerar_relatorio         renderiza um relatório já produzido em outro formato
 
 Prompt exposto:
@@ -28,7 +32,7 @@ from pydantic import Field
 from . import analisador
 from .caminhos import checklists_disponiveis
 from .extratores import pdf as extrator
-from .modelos import Relatorio, Status
+from .modelos import Origem, Relatorio, Status
 from .relatorios import FORMATOS
 from .validadores import checklist as mod_checklist
 from .validadores import contexto as mod_contexto
@@ -40,12 +44,20 @@ mcp = FastMCP(
     name="conformidade-pbtr",
     instructions=(
         "Analisa Projetos Básicos (PB) e Termos de Referência (TR) contra o "
-        "roteiro [TI] de análise. Quando o usuário pedir para 'conduzir análise "
-        "de conformidade' de um PB ou TR e enviar um PDF, chame "
-        "analisar_conformidade. Em execução local, passe `caminho_arquivo`; em "
-        "execução remota (servidor hospedado), envie o PDF em `conteudo_base64` "
-        "com `nome_arquivo` e peça os relatórios em `retornar_conteudo`. O "
-        "retorno traz o sumário e as pendências priorizadas."
+        "roteiro [TI] de análise.\n\n"
+        "Quando o usuário pedir para 'conduzir análise de conformidade' de um "
+        "PB ou TR e anexar o documento, execute os três passos sem pedir "
+        "confirmação entre eles:\n"
+        "1. analisar_conformidade — passe `caminho_arquivo` em execução local, "
+        "ou `conteudo_base64` + `nome_arquivo` em servidor hospedado;\n"
+        "2. obter_texto_para_revisao — leia o texto e revise o português, "
+        "citando os trechos exatamente como estão no documento;\n"
+        "3. registrar_revisao_textual — envie os apontamentos e receba os "
+        "relatórios.\n\n"
+        "A revisão de português é sua: o servidor faz as verificações "
+        "determinísticas (checklist, numeração, tabelas e valores) e conta com "
+        "você para a leitura do texto. Ao final, apresente o índice de "
+        "conformidade, as pendências críticas e entregue os arquivos."
     ),
 )
 
@@ -59,8 +71,10 @@ MODO_REMOTO = os.environ.get("CONFORMIDADE_PBTR_MODO", "").lower() == "remoto"
 # limite do upload em base64, para não estourar a memória da instância
 MAX_UPLOAD_MB = float(os.environ.get("CONFORMIDADE_PBTR_MAX_UPLOAD_MB", "25"))
 
-# cache das análises da sessão: chave -> Relatorio
+# cache das análises da sessão
 _CACHE: dict[str, Relatorio] = {}
+_SEGMENTOS: dict[str, list[Any]] = {}
+_CONTEXTO_SAIDA: dict[str, dict[str, Any]] = {}
 
 
 def _chave(caminho: str) -> str:
@@ -176,7 +190,10 @@ def analisar_conformidade(
         list[Literal["json", "md", "docx", "xlsx", "pdf"]] | None,
         Field(description="Formatos do relatório a gerar. Padrão: ['md', 'docx']."),
     ] = None,
-    revisar_ortografia: Annotated[bool, Field(description="Executar a revisão textual pt-BR.")] = True,
+    revisar_texto: Annotated[
+        bool,
+        Field(description="Aplicar as regras determinísticas de revisão e preparar o texto para a revisão do agente."),
+    ] = True,
     limite_ortografia: Annotated[int, Field(description="Máximo de apontamentos textuais.", ge=0, le=1000)] = 200,
     tags_contexto: Annotated[
         list[str] | None,
@@ -192,13 +209,18 @@ def analisar_conformidade(
     ] = False,
     diretorio_saida: Annotated[str | None, Field(description="Onde gravar os relatórios.")] = None,
 ) -> dict[str, Any]:
-    """Conduz a análise de conformidade completa de um PB/TR e gera os relatórios.
+    """Passo 1 de 3. Roda a análise determinística do PB/TR.
 
-    Verifica: (1) os itens do checklist normativo; (2) a numeração hierárquica
-    dos itens; (3) a aritmética das tabelas de preços e os valores declarados
-    (inclusive valor por extenso); (4) ortografia e gramática em pt-BR.
+    Verifica os itens do checklist normativo, a numeração hierárquica, a
+    aritmética das tabelas e os valores declarados, além das regras
+    determinísticas de revisão textual.
+
+    A revisão de português NÃO acontece aqui: o retorno traz o número de
+    segmentos de texto aguardando revisão. Siga para `obter_texto_para_revisao`
+    e depois `registrar_revisao_textual`, que é onde os relatórios são gerados.
+    Só passe `formatos` nesta chamada se for pular a revisão textual.
     """
-    caminho, erro, _tmp = _materializar(caminho_arquivo, conteudo_base64, nome_arquivo)
+    caminho, erro, tmp = _materializar(caminho_arquivo, conteudo_base64, nome_arquivo)
     if erro:
         return {"erro": erro}
 
@@ -206,34 +228,170 @@ def analisar_conformidade(
         rel = analisador.analisar(
             caminho,
             tipo=tipo,
-            usar_languagetool=revisar_ortografia,
-            limite_ortografia=limite_ortografia if revisar_ortografia else 0,
+            revisar_texto=revisar_texto,
+            limite_ortografia=limite_ortografia,
             tags_forcadas=tags_contexto,
             caminho_checklist=checklist,
         )
     except FileNotFoundError as exc:
         return {"erro": str(exc), "checklists_disponiveis": checklists_disponiveis()}
-    _CACHE[_chave(str(caminho))] = rel
 
-    saida = Path(diretorio_saida).expanduser() if diretorio_saida else DIR_SAIDA
+    chave = _chave(str(caminho))
+    segmentos = mod_ortografia.segmentar(rel.documento) if revisar_texto else []
+    _CACHE[chave] = rel
+    _SEGMENTOS[chave] = segmentos
+    _CONTEXTO_SAIDA[chave] = {
+        "base": f"Relatorio_Conformidade_{caminho.stem[:60]}".replace(" ", "_"),
+        "diretorio": diretorio_saida,
+        "retornar_conteudo": retornar_conteudo,
+        "tmp": tmp,  # mantém o diretório temporário vivo enquanto a análise existir
+    }
+
+    resultado = _sumario(rel)
+    resultado["chave_analise"] = chave
+
+    if formatos:
+        gerados, erros = _emitir(rel, chave, formatos)
+        resultado["relatorios"] = gerados
+        if erros:
+            resultado["erros_geracao"] = erros
+        resultado["revisao_textual"] = {
+            "status": "dispensada",
+            "observacao": "Relatórios emitidos sem a revisão de português.",
+        }
+        return resultado
+
+    resultado["revisao_textual"] = {
+        "status": "pendente",
+        "segmentos": len(segmentos),
+        "proxima_acao": (
+            f"Chame obter_texto_para_revisao(chave_analise='{chave}') para ler o texto, "
+            "revise o português de cada segmento e devolva os apontamentos em "
+            f"registrar_revisao_textual(chave_analise='{chave}', apontamentos=[...], "
+            "formatos=['md','docx']) — é essa chamada que gera os relatórios."
+        ),
+    }
+    return resultado
+
+
+def _emitir(
+    rel: Relatorio, chave: str, formatos: list[str]
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """Gera os relatórios de uma análise em cache."""
+    ctx = _CONTEXTO_SAIDA.get(chave, {})
+    saida = Path(ctx["diretorio"]).expanduser() if ctx.get("diretorio") else DIR_SAIDA
     saida.mkdir(parents=True, exist_ok=True)
-    base = f"Relatorio_Conformidade_{caminho.stem[:60]}".replace(" ", "_")
+    base = ctx.get("base") or f"Relatorio_Conformidade_{chave}"
 
     gerados: dict[str, str] = {}
     erros: dict[str, str] = {}
-    for fmt in formatos or ["md", "docx"]:
+    for fmt in formatos:
         ext = "md" if fmt in ("md", "markdown") else fmt
         try:
             gerados[fmt] = FORMATOS[fmt](rel, saida / f"{base}.{ext}")
         except Exception as exc:  # um formato quebrado não invalida a análise
             erros[fmt] = f"{type(exc).__name__}: {exc}"
 
-    resultado = _sumario(rel)
-    resultado["chave_analise"] = _chave(str(caminho))
-    if retornar_conteudo or MODO_REMOTO:
-        resultado["relatorios"] = _embutir(gerados)
-    else:
-        resultado["relatorios"] = gerados
+    if ctx.get("retornar_conteudo") or MODO_REMOTO:
+        return _embutir(gerados), erros
+    return gerados, erros
+
+
+@mcp.tool
+def obter_texto_para_revisao(
+    chave_analise: Annotated[str, Field(description="Chave devolvida por analisar_conformidade.")],
+    inicio: Annotated[int, Field(description="Índice do primeiro segmento.", ge=0)] = 0,
+    limite: Annotated[int, Field(description="Quantos segmentos devolver.", ge=1, le=200)] = 40,
+) -> dict[str, Any]:
+    """Passo 2 de 3. Devolve o texto do documento segmentado, para você revisar.
+
+    Leia cada segmento e identifique erros de português: ortografia,
+    concordância, regência, crase, pontuação, e também problemas de redação que
+    comprometem o documento — ambiguidade, vaguidão, "poderá" onde a obrigação
+    exige "deverá".
+
+    Ao apontar, copie o trecho com erro **exatamente como está no documento**:
+    `registrar_revisao_textual` confere se o trecho existe literalmente e
+    descarta o que não conferir. Não parafraseie a citação.
+    """
+    if chave_analise not in _CACHE:
+        return {"erro": f"Análise '{chave_analise}' não está em cache.", "disponiveis": list(_CACHE)}
+
+    segmentos = _SEGMENTOS.get(chave_analise, [])
+    fatia = segmentos[inicio : inicio + limite]
+    restantes = max(0, len(segmentos) - (inicio + len(fatia)))
+    return {
+        "chave_analise": chave_analise,
+        "total_segmentos": len(segmentos),
+        "devolvidos": len(fatia),
+        "restantes": restantes,
+        "segmentos": [s.to_dict() for s in fatia],
+        "proxima_acao": (
+            f"Chame obter_texto_para_revisao(chave_analise='{chave_analise}', "
+            f"inicio={inicio + len(fatia)}) para os {restantes} segmentos restantes."
+            if restantes
+            else "Todo o texto foi entregue. Envie os apontamentos em registrar_revisao_textual."
+        ),
+    }
+
+
+@mcp.tool
+def registrar_revisao_textual(
+    chave_analise: Annotated[str, Field(description="Chave devolvida por analisar_conformidade.")],
+    apontamentos: Annotated[
+        list[dict[str, Any]],
+        Field(
+            description=(
+                "Erros encontrados na revisão. Cada item: "
+                "{'trecho': texto exato do documento, 'sugestao': correção proposta, "
+                "'tipo': ortografia|gramatica|concordancia|regencia|crase|pontuacao|"
+                "clareza|ambiguidade|impropriedade|coesao, 'explicacao': por que está errado, "
+                "'pagina': número da página (opcional)}. Lista vazia se o texto estiver correto."
+            )
+        ),
+    ],
+    formatos: Annotated[
+        list[Literal["json", "md", "docx", "xlsx", "pdf"]] | None,
+        Field(description="Formatos do relatório final. Padrão: ['md', 'docx']."),
+    ] = None,
+) -> dict[str, Any]:
+    """Passo 3 de 3. Registra a sua revisão e gera os relatórios finais.
+
+    Cada apontamento só é aceito se o `trecho` existir literalmente no
+    documento — os que não conferirem voltam em `recusados`, com o motivo. Isso
+    impede que uma citação imprecisa vire achado num relatório que instrui
+    processo administrativo.
+
+    Os apontamentos entram no relatório como *sugestão de revisão*, separados
+    dos achados determinísticos e fora do índice de conformidade.
+    """
+    rel = _CACHE.get(chave_analise)
+    if rel is None:
+        return {"erro": f"Análise '{chave_analise}' não está em cache.", "disponiveis": list(_CACHE)}
+
+    # uma nova revisão substitui a anterior, para a tool ser idempotente
+    rel.achados = [a for a in rel.achados if a.origem != Origem.IA]
+
+    aceitos, recusados = mod_ortografia.converter_apontamentos(rel.documento, apontamentos or [])
+    rel.achados.extend(aceitos)
+    analisador.recalcular(rel)
+
+    gerados, erros = _emitir(rel, chave_analise, formatos or ["md", "docx"])
+
+    resultado: dict[str, Any] = {
+        "chave_analise": chave_analise,
+        "apontamentos_aceitos": len(aceitos),
+        "apontamentos_recusados": len(recusados),
+        "recusados": recusados[:20],
+        "resumo": rel.resumo.to_dict(),
+        "relatorios": gerados,
+    }
+    if recusados:
+        resultado["observacao"] = (
+            "Apontamentos recusados não entraram no relatório. O motivo mais comum é "
+            "o trecho citado não bater com o documento — copie o texto exatamente e "
+            "chame esta tool de novo com a lista corrigida."
+        )
     if erros:
         resultado["erros_geracao"] = erros
     return resultado
@@ -283,21 +441,31 @@ def validar_tabelas(
 def revisar_ortografia(
     caminho_arquivo: Annotated[str, Field(description="Caminho do PDF/DOCX do PB/TR.")],
     limite: Annotated[int, Field(description="Máximo de apontamentos.", ge=1, le=1000)] = 200,
-    usar_languagetool: Annotated[bool, Field(description="Usar o LanguageTool local.")] = True,
+    incluir_texto: Annotated[
+        bool, Field(description="Devolver também o texto segmentado, para você revisar.")
+    ] = True,
 ) -> dict[str, Any]:
-    """Revisa ortografia e gramática em pt-BR, ignorando as siglas e o jargão do
-    SERPRO cadastrados no dicionário do projeto."""
+    """Aplica as regras determinísticas de revisão e devolve o texto segmentado.
+
+    As regras cobrem erros recorrentes em documentos administrativos ("a nível
+    de", "à partir", palavra repetida). A revisão de português propriamente
+    dita é sua: leia os segmentos devolvidos em `texto_para_revisao`.
+    """
     caminho = Path(caminho_arquivo).expanduser()
     if not caminho.exists():
         return {"erro": f"Arquivo não encontrado: {caminho}"}
     doc = extrator.carregar(caminho)
-    achados, avisos = mod_ortografia.validar(doc, usar_languagetool, limite)
-    return {
+    achados = mod_ortografia.validar(doc, limite)
+    resultado: dict[str, Any] = {
         "documento": doc.nome,
-        "total": len(achados),
+        "total_deterministicos": len(achados),
         "apontamentos": [a.to_dict() for a in achados],
-        "avisos": avisos,
     }
+    if incluir_texto:
+        resultado["texto_para_revisao"] = [
+            s.to_dict() for s in mod_ortografia.segmentar(doc)
+        ]
+    return resultado
 
 
 @mcp.tool
@@ -438,33 +606,44 @@ async def health(request):  # noqa: ARG001 - assinatura exigida pelo Starlette
 @mcp.prompt(name="conduzir_analise_conformidade")
 def prompt_conduzir(caminho_arquivo: str = "", tipo: str = "PB") -> str:
     """Roteiro para conduzir a análise de conformidade de um PB ou TR."""
-    return f"""Conduza a análise de conformidade do {tipo} indicado, seguindo estes passos:
+    return f"""Conduza a análise de conformidade do {tipo} indicado, seguindo estes passos sem pedir confirmação entre eles:
 
-1. Chame `extrair_estrutura` em "{caminho_arquivo}". Se `possivel_pdf_digitalizado`
-   for verdadeiro, avise o usuário de que o PDF precisa de OCR antes de prosseguir.
+1. `extrair_estrutura` em "{caminho_arquivo}". Se `possivel_pdf_digitalizado` for
+   verdadeiro, avise o usuário de que o PDF precisa de OCR e pare.
 
-2. Confirme com o usuário o contexto da contratação quando a inferência estiver
-   ambígua (licitação x contratação direta x inexigibilidade; serviço x bem x
-   consultoria). Passe as correções em `tags_contexto`.
+2. `analisar_conformidade`. Corrija a inferência de contexto com `tags_contexto`
+   se o documento for de consultoria, licitação ou contratação direta e a
+   inferência tiver errado.
 
-3. Chame `analisar_conformidade` com formatos ["md", "docx", "xlsx", "pdf"].
+3. `obter_texto_para_revisao` e revise o português de cada segmento. Procure:
+   - erro de ortografia, concordância, regência, crase e pontuação;
+   - ambiguidade e vaguidão que comprometam a execução do contrato
+     ("prazo razoável", "quantidade suficiente");
+   - obrigação enfraquecida: "poderá" onde o dever exige "deverá";
+   - incoerência entre trechos (prazo citado em duas seções com valores
+     diferentes, por exemplo).
+   Copie cada trecho problemático **exatamente como está no documento** — a
+   citação é conferida contra o texto e apontamento que não bate é descartado.
 
-4. Apresente ao usuário, nesta ordem:
+4. `registrar_revisao_textual` com os apontamentos e os formatos desejados.
+   Confira o campo `recusados`: se houver, corrija as citações e chame de novo.
+
+5. Apresente ao usuário, nesta ordem:
    - o índice de conformidade e a classificação;
    - as pendências CRÍTICAS não conformes, com a recomendação de cada uma;
-   - as divergências de tabela/valor, citando o número esperado e o encontrado;
+   - as divergências de tabela e valor, citando o esperado e o encontrado;
    - os erros de numeração;
-   - um resumo quantitativo da revisão textual (não liste todos os apontamentos:
-     eles estão no relatório).
+   - um resumo quantitativo da revisão textual, sem listar tudo.
 
-5. Destaque separadamente os itens marcados como "verificar manualmente" —
-   sobretudo a aderência entre a Aba Itens e as quantidades do PB, que o
-   sistema não consegue conferir a partir do PDF.
+6. Destaque à parte os itens de conferência manual — sobretudo a aderência
+   entre a Aba Itens e as quantidades do PB, que não é verificável pelo PDF.
 
-6. Entregue os arquivos de relatório gerados.
+7. Entregue os arquivos de relatório gerados.
 
-Não afirme que um item está conforme sem que a análise o tenha classificado como
-tal; quando a evidência textual for fraca, trate como "verificar manualmente".
+Não afirme que um item está conforme sem que a análise o tenha classificado
+como tal. Distinga no seu resumo o que é verificação determinística do que é
+sugestão da sua revisão: são coisas de peso diferente para quem vai assinar o
+parecer.
 """
 
 

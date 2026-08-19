@@ -26,8 +26,7 @@ def relatorio():
             [sys.executable, str(RAIZ / "exemplos" / "gerar_pb_teste.py")],
             check=True,
         )
-    # LanguageTool desligado: os testes não devem depender de Java nem de rede
-    return analisar(PB_TESTE, usar_languagetool=False)
+    return analisar(PB_TESTE)
 
 
 # ---------------------------------------------------------------- extração
@@ -117,7 +116,7 @@ def test_detecta_extenso_divergente(relatorio):
 @pytest.mark.parametrize(
     "trecho", ["a nível de", "afim de", "deverá deverá", "À partir", "frizar"]
 )
-def test_regras_locais_de_revisao(relatorio, trecho):
+def test_regras_deterministicas_de_revisao(relatorio, trecho):
     encontrados = [a.encontrado for a in relatorio.achados if a.id.startswith("ORT")]
     assert any(trecho.lower() in e.lower() for e in encontrados)
 

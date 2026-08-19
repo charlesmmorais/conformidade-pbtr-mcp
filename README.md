@@ -21,7 +21,7 @@ Projeto do **SERPRO — Serviço Federal de Processamento de Dados**.
 | **Checklist normativo** | 86 regras derivadas do roteiro `[TI]` de PB/TR — seções 1 a 8, Declarações e Anexos |
 | **Numeração** | saltos (5.1 → 5.3), itens duplicados, subitens órfãos, itens fora de ordem, seções obrigatórias ausentes |
 | **Tabelas e valores** | colunas mínimas, `Qtd × Unitário = Total`, fechamento do somatório, coerência mensal, valor por extenso × numeral, valor global do texto × tabela |
-| **Ortografia e gramática** | pt-BR via LanguageTool local + 20 regras próprias para erros recorrentes em documentos administrativos, com dicionário de siglas institucionais |
+| **Revisão textual** | 20 regras determinísticas para erros recorrentes em documentos administrativos, mais a revisão de português feita pelo próprio modelo que chama o MCP |
 
 As regras do checklist são **condicionais**. O servidor infere o contexto da
 contratação — licitação, contratação direta, inexigibilidade, serviço, bem,
@@ -44,10 +44,36 @@ juízo humano ("verificar se há coerência entre eles"). O relatório usa:
 | **Verificar manualmente** | indício presente; o mérito exige olho humano |
 | **Não aplicável** | o contexto do documento não aciona a regra |
 
+## Como a revisão de português funciona
+
+Quem revisa o texto é o **modelo que chamou o MCP** — ele já está com o
+documento em contexto, então não faz sentido o servidor abrir uma segunda
+conversa com outro modelo para reler o mesmo texto. O servidor cuida do que é
+determinístico e entrega o texto segmentado para o agente ler.
+
+Daí o fluxo em três passos, que o agente encadeia sozinho:
+
+```
+1. analisar_conformidade      → checklist, numeração, tabelas, valores
+                                 (+ regras determinísticas de revisão)
+2. obter_texto_para_revisao   → o agente lê e revisa o português
+3. registrar_revisao_textual  → apontamentos entram e os relatórios saem
+```
+
+**Cada apontamento do agente só entra no relatório se o trecho citado existir
+literalmente no documento.** A conferência é feita contra o texto extraído,
+tolerando diferença de espaçamento e aspas. Se o modelo não consegue apontar
+onde está o erro, o apontamento é descartado e devolvido em `recusados`, com o
+motivo — é o que separa uma revisão útil de uma alucinação num relatório que
+instrui processo administrativo.
+
+No relatório, essas sugestões aparecem em seção própria, marcadas como não
+reprodutíveis, e **ficam fora do índice de conformidade**. Verificação exata e
+sugestão de leitura têm pesos diferentes para quem assina o parecer.
+
 ## Instalação
 
-Requisitos: Python 3.11+ e Java 8+ (só para o LanguageTool — sem Java a análise
-continua rodando com as regras próprias e registra um aviso).
+Requisito único: Python 3.11+. Não há dependência de Java nem de serviço externo.
 
 ```bash
 git clone https://github.com/charlesmmorais/conformidade-pbtr-mcp.git
@@ -85,17 +111,25 @@ curl https://<sua-app>.fly.dev/health
 No modo hospedado o cliente não compartilha disco com o servidor: o PDF sobe em
 `conteudo_base64` e os relatórios voltam embutidos na resposta. Leia
 [`docs/DEPLOY.md`](docs/DEPLOY.md) antes do primeiro deploy — em especial a
-seção sobre exposição do endpoint e o dimensionamento de memória, já que a JVM
-do LanguageTool sozinha pede ~1 GB.
+seção sobre exposição do endpoint. A imagem tem ~250 MB e roda em 512 MB.
 
 ## Tools expostas
 
+Fluxo principal:
+
 | Tool | Uso |
 |---|---|
-| `analisar_conformidade` | análise completa + geração dos relatórios |
+| `analisar_conformidade` | passo 1 — verificações determinísticas |
+| `obter_texto_para_revisao` | passo 2 — devolve o texto segmentado para o agente revisar |
+| `registrar_revisao_textual` | passo 3 — recebe os apontamentos e emite os relatórios |
+
+Auxiliares:
+
+| Tool | Uso |
+|---|---|
 | `verificar_numeracao` | só a numeração hierárquica |
 | `validar_tabelas` | só tabelas, aritmética e valores |
-| `revisar_ortografia` | só a revisão textual pt-BR |
+| `revisar_ortografia` | regras determinísticas + texto segmentado |
 | `extrair_estrutura` | diagnóstico da extração (detecta PDF digitalizado) |
 | `consultar_checklist` | consulta as regras, por seção, tag ou severidade |
 | `gerar_relatorio` | re-renderiza uma análise da sessão em outro formato |
@@ -118,9 +152,9 @@ gerar_docx(rel, "Relatorio_Conformidade.docx")
 ## Índice de conformidade
 
 Média ponderada por severidade (crítico 4, alto 3, médio 2) sobre os itens
-**avaliáveis automaticamente**. Itens *Não aplicável*, *Verificar manualmente* e
-os apontamentos de revisão textual ficam fora do cálculo, para não distorcer a
-nota.
+**avaliáveis automaticamente**. Itens *Não aplicável*, *Verificar manualmente*,
+os apontamentos de revisão textual e as sugestões do agente ficam fora do
+cálculo, para não distorcer a nota.
 
 | Faixa | Leitura |
 |---|---|

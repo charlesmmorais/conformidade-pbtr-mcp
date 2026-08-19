@@ -36,7 +36,6 @@ dependencies = [
     "reportlab>=4.0",
     "PyYAML>=6.0",
     "num2words>=0.5.13",
-    "language-tool-python>=2.8",
 ]
 
 [project.optional-dependencies]

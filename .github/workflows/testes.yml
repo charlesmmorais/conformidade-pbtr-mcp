@@ -32,8 +32,6 @@ jobs:
       - name: Gerar o PB sintético de teste
         run: python exemplos/gerar_pb_teste.py
 
-      # Os testes rodam sem Java de propósito: exercitam o caminho de
-      # degradação graciosa, em que a revisão textual usa só as regras próprias.
       - name: Rodar os testes
         run: pytest -q
 

@@ -60,19 +60,15 @@ derruba o health check em vez de aparecer só na primeira análise real.
 
 ## Dimensionamento
 
-A JVM do LanguageTool pede cerca de 1 GB sozinha. Com 512 MB o processo morre
-por OOM na primeira análise, e o sintoma (máquina reiniciando sem log claro) não
-aponta para a causa. Por isso o `fly.toml` traz `memory = "2gb"`.
+A imagem é só Python: ~250 MB, sem JVM. `512mb` de RAM atende com folga, já
+que o pico de consumo é o PDF carregado em memória durante a extração. Suba
+para 1 GB se for analisar PBs muito grandes em paralelo.
 
-Se o custo pesar, `COM_LANGUAGETOOL=0` no `[build.args]` derruba a imagem de
-~1 GB para ~250 MB e permite rodar com 512 MB — a revisão textual passa a usar
-só as 20 regras próprias do projeto, que cobrem os erros mais recorrentes em
-documentos administrativos mas não fazem análise gramatical geral. As outras
-três camadas (checklist, numeração, tabelas) não são afetadas.
+Como não há processo pesado para aquecer, `min_machines_running = 0` é seguro:
+o cold start é o de um processo Python, na casa de um segundo.
 
-`min_machines_running = 1` evita que a primeira análise após um período ocioso
-pague a subida da JVM. Com `auto_stop_machines = "suspend"` a máquina suspende
-mantendo a memória, o que torna o retorno rápido.
+A revisão de português não consome recurso do servidor — quem lê o texto é o
+modelo que chamou o MCP.
 
 ## Conectando o cliente
 
@@ -86,6 +82,12 @@ mantendo a memória, o que torna o retorno rápido.
   }
 }
 ```
+
+O fluxo tem três chamadas (`analisar_conformidade` →
+`obter_texto_para_revisao` → `registrar_revisao_textual`) e o `chave_analise`
+amarra as três. Como o cache é de processo, **as três precisam cair na mesma
+máquina**: com mais de uma instância, configure afinidade de sessão ou mantenha
+`min_machines_running = 1` com uma instância só enquanto o volume permitir.
 
 Chamada típica no modo hospedado:
 

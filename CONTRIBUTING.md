@@ -13,8 +13,7 @@ pip install -e ".[dev]"
 pytest -q
 ```
 
-Java 8+ é opcional: sem ele o LanguageTool não roda e a revisão textual fica só
-com as regras próprias. Os testes não dependem de Java nem de rede.
+Não há dependência de Java nem de rede: os testes rodam offline.
 
 ## Os dois tipos de contribuição
 

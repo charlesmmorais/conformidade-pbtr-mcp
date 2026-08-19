@@ -1,40 +1,34 @@
-"""Revisão ortográfica e gramatical em pt-BR.
+"""Revisão textual em pt-BR.
 
-Estratégia em duas camadas:
-  1. LanguageTool local (pt-BR) — gramática, concordância, regência, crase.
-     Exige Java 8+. As siglas e jargões do SERPRO ficam em
-     `recursos/dicionario_serpro.txt` e são ignorados.
-  2. Regras próprias (sempre ativas) — erros recorrentes em PB/TR que o
-     LanguageTool não pega ou pega mal: "a nível de", "afim de", "de encontro
-     a", uso de "R$" com "reais" duplicado, espaçamento antes de pontuação,
-     "mesmo" como pronome, etc.
+Duas camadas, com naturezas diferentes e que por isso não se misturam no
+relatório:
 
-Se o LanguageTool não estiver disponível, a camada 2 continua rodando e o
-relatório registra o aviso — a análise nunca falha por causa disso.
+1. **Regras determinísticas** (aqui neste módulo). Erros recorrentes em
+   documentos administrativos que valem uma verificação exata: "a nível de",
+   "afim de", "à partir", palavra repetida, grafias trocadas. São
+   reprodutíveis, citam a regra que dispararam e não custam nada.
+
+2. **Revisão pelo agente**. O módulo segmenta o texto e entrega os trechos ao
+   modelo que chamou o MCP — que já está com o documento em contexto. O modelo
+   devolve os apontamentos por `registrar_revisao_textual`, e cada um só entra
+   no relatório se o trecho citado existir *literalmente* no documento. Essa
+   verificação é o que impede que uma citação inventada vire achado.
+
+A camada 2 pega o que a 1 nunca pegaria — ambiguidade, vaguidão, "poderá" onde
+deveria ser "deverá" — mas não é reprodutível. Por isso seus achados entram
+como *sugestão de revisão*, marcados com origem `ia`, e ficam fora do índice de
+conformidade.
 """
 
 from __future__ import annotations
 
 import functools
 import re
+import unicodedata
+from dataclasses import dataclass
 
 from ..caminhos import caminho_dicionario
-from ..modelos import Achado, Categoria, Documento, Severidade, Status
-
-# Regras do LanguageTool desativadas: geram ruído em texto jurídico/administrativo.
-REGRAS_DESATIVADAS = {
-    "WHITESPACE_RULE",
-    "UPPERCASE_SENTENCE_START",
-    "PT_BARBARISMS_REPLACE",
-    "FRAGMENT_TWO_ARTICLES",
-    "DOUBLE_PUNCTUATION",
-    # "nº" é a forma consagrada em documentos administrativos brasileiros;
-    # a sugestão "n.º/núm." do LanguageTool só gera ruído em PB/TR.
-    "NUMBER_ABREVIATION",
-}
-
-CATEGORIAS_DESATIVADAS = {"TYPOGRAPHY", "STYLE", "REDUNDANCY"}
-
+from ..modelos import Achado, Categoria, Documento, Origem, Severidade, Status
 
 # ------------------------------------------------------- regras próprias
 
@@ -124,12 +118,6 @@ REGRAS_LOCAIS: list[tuple[str, str, str, Severidade]] = [
         Severidade.INFORMATIVO,
     ),
     (
-        r"\bmeio ambiente\s+ambiental\b",
-        "redundância",
-        "Redundância — reescrever.",
-        Severidade.INFORMATIVO,
-    ),
-    (
         r"\bdevido\s+a\s+que\b",
         '"devido a que"',
         'Preferir "uma vez que" ou "porque".',
@@ -148,12 +136,6 @@ REGRAS_LOCAIS: list[tuple[str, str, str, Severidade]] = [
         Severidade.ALTO,
     ),
     (
-        r"\bconcerteza\b|\bcom certeza\s+absoluta\b",
-        "grafia/registro",
-        'Usar "com certeza" e evitar reforços desnecessários.',
-        Severidade.INFORMATIVO,
-    ),
-    (
         r"\bfrizar\b",
         "grafia de frisar",
         'A grafia correta é "frisar".',
@@ -165,11 +147,18 @@ REGRAS_LOCAIS: list[tuple[str, str, str, Severidade]] = [
         'Para detalhamento, usar "discriminação"; "descriminação" é tornar não criminoso.',
         Severidade.ALTO,
     ),
+    (
+        r"\bconcerteza\b",
+        "grafia de com certeza",
+        'Escreve-se "com certeza", separado.',
+        Severidade.ALTO,
+    ),
 ]
 
 
 @functools.lru_cache(maxsize=1)
 def carregar_dicionario() -> set[str]:
+    """Termos aceitos — siglas e jargão que não devem virar apontamento."""
     caminho = caminho_dicionario()
     if caminho is None or not caminho.exists():
         return set()
@@ -182,55 +171,7 @@ def carregar_dicionario() -> set[str]:
     return termos
 
 
-@functools.lru_cache(maxsize=1)
-def _ferramenta():
-    """Instancia o LanguageTool uma única vez por processo."""
-    import language_tool_python
-
-    tool = language_tool_python.LanguageTool("pt-BR")
-    for regra in REGRAS_DESATIVADAS:
-        tool.disabled_rules.add(regra)
-    return tool
-
-
-def _attr(match, *nomes, padrao=""):
-    """Acessa atributos do Match tolerando as variações de API do
-    language-tool-python (camelCase até a 2.7, snake_case a partir da 2.8)."""
-    for nome in nomes:
-        try:
-            valor = getattr(match, nome)
-        except AttributeError:
-            continue
-        if valor is not None:
-            return valor
-    return padrao
-
-
-def _ignorar(match, dicionario: set[str], texto: str) -> bool:
-    tamanho = _attr(match, "error_length", "errorLength", padrao=0)
-    trecho = texto[match.offset : match.offset + tamanho]
-    if trecho.strip() in dicionario:
-        return True
-    if trecho.strip().upper() in {t.upper() for t in dicionario}:
-        return True
-    # siglas: caixa alta com até 6 letras, admitindo plural ("DODs", "ETPs")
-    # e sufixo numérico ("LA008", "TR014")
-    if re.fullmatch(r"[A-ZÇÁÉÍÓÚÂÊÔÃÕ]{2,6}s?(?:[-/]?\d{1,4})?", trecho.strip()):
-        return True
-    # a sigla-base está no dicionário e o token é a sua flexão de plural
-    nucleo = trecho.strip().rstrip("s")
-    if nucleo and nucleo in {t for t in dicionario if t.isupper()}:
-        return True
-    # números, datas, referências normativas
-    if re.fullmatch(r"[\d\.,/\-º°%R$ ]+", trecho.strip()):
-        return True
-    if _attr(match, "category") in CATEGORIAS_DESATIVADAS:
-        return True
-    return False
-
-
 def _pagina_do_offset(doc: Documento, offset: int) -> int | None:
-    """Aproxima a página a partir do offset no texto concatenado."""
     if not doc.blocos:
         return None
     acumulado = 0
@@ -241,10 +182,9 @@ def _pagina_do_offset(doc: Documento, offset: int) -> int | None:
     return doc.blocos[-1].pagina
 
 
-def _regras_locais(doc: Documento, limite: int) -> list[tuple[Achado, int, int]]:
-    """Devolve (achado, offset_inicial, offset_final) para permitir deduplicação
-    contra as ocorrências do LanguageTool."""
-    achados: list[tuple[Achado, int, int]] = []
+def validar(doc: Documento, limite: int = 200) -> list[Achado]:
+    """Aplica as regras determinísticas de revisão."""
+    achados: list[Achado] = []
     n = 0
     for padrao, rotulo, orientacao, severidade in REGRAS_LOCAIS:
         for m in re.finditer(padrao, doc.texto, re.IGNORECASE):
@@ -253,10 +193,11 @@ def _regras_locais(doc: Documento, limite: int) -> list[tuple[Achado, int, int]]
             n += 1
             ini = max(0, m.start() - 60)
             fim = min(len(doc.texto), m.end() + 60)
-            achados.append((
+            achados.append(
                 Achado(
-                    id=f"ORT-L{n:03d}",
+                    id=f"ORT-{n:03d}",
                     categoria=Categoria.ORTOGRAFIA,
+                    origem=Origem.DETERMINISTICO,
                     titulo=f"Revisão de texto: {rotulo}",
                     status=Status.NAO_CONFORME,
                     severidade=severidade,
@@ -265,78 +206,162 @@ def _regras_locais(doc: Documento, limite: int) -> list[tuple[Achado, int, int]]
                     evidencia="..." + doc.texto[ini:fim].replace("\n", " ") + "...",
                     encontrado=m.group(0),
                     orientacao=orientacao,
-                    fundamento="Regra interna de revisão (camada própria)",
-                ),
-                m.start(),
-                m.end(),
-            ))
+                    fundamento="Regra determinística de revisão",
+                )
+            )
     return achados
 
 
-def validar(
-    doc: Documento,
-    usar_languagetool: bool = True,
-    limite: int = 200,
-) -> tuple[list[Achado], list[str]]:
-    """Devolve (achados, avisos)."""
-    avisos: list[str] = []
-    locais = _regras_locais(doc, limite)
+# ------------------------------------------- segmentação para o agente
 
-    if not usar_languagetool:
-        avisos.append("LanguageTool desabilitado por parâmetro; usadas apenas as regras próprias.")
-        return [a for a, _, _ in locais], avisos
+# Linhas que não vale a pena mandar para revisão: numeração solta, valores,
+# cabeçalho/rodapé de página.
+RE_DESCARTAVEL = re.compile(
+    r"^\s*(?:[\d\.\-–—|R$%,\s]+|p[aá]g(?:ina)?\.?\s*\d+(?:\s*/\s*\d+)?)\s*$",
+    re.IGNORECASE,
+)
 
-    try:
-        tool = _ferramenta()
-    except Exception as exc:  # Java ausente, download bloqueado, etc.
-        avisos.append(
-            f"LanguageTool indisponível ({type(exc).__name__}: {exc}). "
-            "A revisão usou apenas as regras próprias — considere instalar o "
-            "Java 8+ para a checagem gramatical completa."
-        )
-        return [a for a, _, _ in locais], avisos
 
-    dicionario = carregar_dicionario()
-    achados: list[Achado] = []
-    cobertos: list[tuple[int, int]] = []
-    n = 0
-    for match in tool.check(doc.texto):
-        if n >= limite:
-            avisos.append(f"Revisão gramatical truncada em {limite} ocorrências.")
-            break
-        if _ignorar(match, dicionario, doc.texto):
+@dataclass
+class Segmento:
+    id: str
+    pagina: int
+    texto: str
+
+    def to_dict(self) -> dict[str, object]:
+        return {"id": self.id, "pagina": self.pagina, "texto": self.texto}
+
+
+def segmentar(doc: Documento, max_caracteres: int = 1200) -> list[Segmento]:
+    """Agrupa o texto em segmentos revisáveis, preservando limites de parágrafo.
+
+    Segmentos grandes demais fazem o modelo perder trechos no meio; pequenos
+    demais tiram o contexto de que ele precisa para julgar concordância e
+    coesão. ~1200 caracteres é o meio-termo.
+    """
+    segmentos: list[Segmento] = []
+    atual: list[str] = []
+    pagina_atual = doc.blocos[0].pagina if doc.blocos else 1
+    tamanho = 0
+
+    def fechar() -> None:
+        nonlocal atual, tamanho
+        if atual:
+            segmentos.append(
+                Segmento(
+                    id=f"S{len(segmentos) + 1:03d}",
+                    pagina=pagina_atual,
+                    texto="\n".join(atual),
+                )
+            )
+            atual = []
+            tamanho = 0
+
+    for bloco in doc.blocos:
+        texto = bloco.texto.strip()
+        if not texto or RE_DESCARTAVEL.match(texto) or len(texto) < 12:
             continue
-        n += 1
-        sugestoes = ", ".join((match.replacements or [])[:3]) or "—"
-        tipo = _attr(match, "rule_issue_type", "ruleIssueType", padrao="gramática")
-        tamanho = _attr(match, "error_length", "errorLength", padrao=0)
-        cobertos.append((match.offset, match.offset + tamanho))
-        achados.append(
+        if bloco.pagina != pagina_atual or tamanho + len(texto) > max_caracteres:
+            fechar()
+            pagina_atual = bloco.pagina
+        atual.append(texto)
+        tamanho += len(texto) + 1
+
+    fechar()
+    return segmentos
+
+
+# --------------------------------- apontamentos vindos do agente (IA)
+
+TIPOS = {
+    "ortografia": Severidade.MEDIO,
+    "gramatica": Severidade.MEDIO,
+    "concordancia": Severidade.MEDIO,
+    "regencia": Severidade.MEDIO,
+    "crase": Severidade.MEDIO,
+    "pontuacao": Severidade.INFORMATIVO,
+    "clareza": Severidade.INFORMATIVO,
+    "ambiguidade": Severidade.ALTO,
+    "impropriedade": Severidade.ALTO,
+    "coesao": Severidade.INFORMATIVO,
+}
+
+
+def _achatar(texto: str) -> str:
+    """Normaliza espaçamento e aspas para comparar o trecho citado com o texto."""
+    t = unicodedata.normalize("NFKC", texto)
+    t = t.replace("“", '"').replace("”", '"')
+    t = t.replace("‘", "'").replace("’", "'")
+    t = t.replace("–", "-").replace("—", "-").replace("­", "")
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def converter_apontamentos(
+    doc: Documento,
+    apontamentos: list[dict],
+) -> tuple[list[Achado], list[dict]]:
+    """Converte os apontamentos do agente em achados, descartando os que não
+    citam trecho existente no documento.
+
+    Devolve (achados aceitos, apontamentos recusados com o motivo). A checagem
+    literal do trecho é o que separa uma revisão útil de uma alucinação: se o
+    modelo não consegue apontar onde está o erro, o apontamento não entra.
+    """
+    aceitos: list[Achado] = []
+    recusados: list[dict] = []
+    texto_plano = _achatar(doc.texto)
+    vistos: set[str] = set()
+
+    for i, ap in enumerate(apontamentos, start=1):
+        trecho = str(ap.get("trecho") or "").strip()
+        if len(trecho) < 4:
+            recusados.append({"indice": i, "motivo": "trecho ausente ou curto demais", "apontamento": ap})
+            continue
+
+        agulha = _achatar(trecho)
+        if agulha not in texto_plano:
+            recusados.append(
+                {
+                    "indice": i,
+                    "motivo": "trecho não localizado literalmente no documento",
+                    "trecho": trecho,
+                    "apontamento": ap,
+                }
+            )
+            continue
+
+        chave = agulha.lower()
+        if chave in vistos:
+            recusados.append({"indice": i, "motivo": "apontamento duplicado", "trecho": trecho})
+            continue
+        vistos.add(chave)
+
+        tipo = str(ap.get("tipo") or "gramatica").lower()
+        severidade = TIPOS.get(tipo, Severidade.INFORMATIVO)
+        sugestao = str(ap.get("sugestao") or "").strip()
+        explicacao = str(ap.get("explicacao") or "").strip()
+
+        pagina = ap.get("pagina")
+        if not isinstance(pagina, int):
+            pagina = _pagina_do_offset(doc, doc.texto.find(trecho[:40]))
+
+        aceitos.append(
             Achado(
-                id=f"ORT-G{n:03d}",
+                id=f"ORT-IA-{len(aceitos) + 1:03d}",
                 categoria=Categoria.ORTOGRAFIA,
-                titulo=f"Revisão de texto: {tipo}",
-                status=Status.NAO_CONFORME,
-                severidade=(
-                    Severidade.MEDIO
-                    if tipo in ("misspelling", "grammar", "typographical")
-                    else Severidade.INFORMATIVO
-                ),
+                origem=Origem.IA,
+                titulo=f"Sugestão de revisão: {tipo}",
+                status=Status.ATENCAO,
+                severidade=severidade,
                 secao="Revisão textual",
-                pagina=_pagina_do_offset(doc, match.offset),
-                descricao=_attr(match, "message"),
-                evidencia=str(_attr(match, "context")).replace("\n", " "),
-                encontrado=doc.texto[match.offset : match.offset + tamanho],
-                esperado=sugestoes,
-                orientacao=f"Sugestão: {sugestoes}",
-                fundamento=f"LanguageTool pt-BR / regra {_attr(match, 'rule_id', 'ruleId')}",
+                pagina=pagina,
+                descricao=explicacao,
+                evidencia=trecho[:300],
+                encontrado=trecho[:200],
+                esperado=sugestao,
+                orientacao=(f"Sugestão: {sugestao}" if sugestao else explicacao) or "Revisar o trecho.",
+                fundamento="Revisão pelo agente (não determinística)",
             )
         )
 
-    # regras próprias só entram quando o LanguageTool não cobriu o mesmo trecho
-    exclusivas = [
-        a
-        for a, ini, fim in locais
-        if not any(ini < f and i < fim for i, f in cobertos)
-    ]
-    return exclusivas + achados, avisos
+    return aceitos, recusados

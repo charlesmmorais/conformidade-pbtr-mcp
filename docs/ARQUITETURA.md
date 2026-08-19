@@ -69,8 +69,8 @@ mérito — não substituir o parecer.
             ▼                   │                   │
    ┌──────────────────┐         │          ┌────────▼─────────┐
    │ checklist.py     │         │          │ ortografia.py    │
-   │ motor de regras  │         │          │ LanguageTool +   │
-   │ + YAML do roteiro│         │          │ regras próprias  │
+   │ motor de regras  │         │          │ regras determin. │
+   │ + YAML do roteiro│         │          │ + segmentação    │
    └────────┬─────────┘         │          └────────┬─────────┘
             └──────────┬────────┴───────────────────┘
                        ▼  list[Achado]
@@ -111,16 +111,34 @@ valor por extenso não dependem de casamento de padrão em linguagem natural —
 exatos, reprodutíveis e não têm falso positivo. São a parte de maior retorno da
 automação e por isso ficam em módulos próprios, com testes específicos.
 
-**Ortografia em duas camadas.** LanguageTool local (offline, determinístico,
-auditável) para gramática geral, mais 20 regras próprias para os erros
-recorrentes em documentos administrativos que o LT não pega bem ("a nível de",
-"R$ 1.000,00 reais", "à partir"). As duas camadas são deduplicadas por offset.
-Se o Java não estiver instalado, a camada própria continua e a análise registra
-um aviso — a ferramenta nunca falha por causa da revisão textual.
+**A revisão de português é do agente, não do servidor.** O MCP já é chamado por
+um modelo de linguagem que está com o documento em contexto; embutir um segundo
+motor de revisão (ou abrir uma chamada a uma API externa) seria reler o mesmo
+texto duas vezes, com custo, dependência e — no caso de API externa — o
+documento saindo do perímetro. Um PB antes da licitação carrega estimativa de
+preços e, na contratação direta, o fornecedor escolhido.
+
+O servidor mantém 20 regras determinísticas para os erros recorrentes em
+documentos administrativos ("a nível de", "à partir", palavra repetida) e
+entrega o restante do texto segmentado ao agente, em três passos:
+`analisar_conformidade` → `obter_texto_para_revisao` → `registrar_revisao_textual`.
+
+**A trava contra alucinação é a verificação literal do trecho.** Um apontamento
+do agente só vira achado se o texto citado existir no documento — comparação
+normalizada por espaçamento e aspas, já que o PDF quebra linhas no meio da
+frase. Se o modelo não consegue apontar onde está o erro, o apontamento é
+descartado e devolvido com o motivo. Isso importa mais, não menos, quando o
+modelo em produção é um LLM interno menor que os de fronteira.
+
+**Sugestão e constatação não se misturam.** Os achados carregam `origem`
+(`deterministico` ou `ia`); o relatório os apresenta em seções distintas e as
+sugestões ficam fora do índice de conformidade. Quem assina o parecer precisa
+distinguir o que é reprodutível do que é leitura.
 
 **Cache de sessão.** `analisar_conformidade` guarda o `Relatorio` em memória sob
-uma chave; `gerar_relatorio` re-renderiza em outro formato sem reprocessar o
-PDF (a análise com LanguageTool leva ~20 s).
+uma chave; os passos seguintes acrescentam a revisão e emitem os relatórios sem
+reprocessar o PDF. O cache é de processo: num deploy com mais de uma instância,
+as três chamadas precisam cair na mesma máquina.
 
 ## 5. Modelo de dados
 
@@ -128,14 +146,15 @@ PDF (a análise com LanguageTool leva ~20 s).
 
 | Campo | Papel |
 |---|---|
-| `id` | `PB-04-002` (regra do roteiro), `NUM-003`, `TAB-01-L02`, `VAL-EXT-01`, `ORT-G007` |
+| `id` | `PB-04-002` (regra do roteiro), `NUM-003`, `TAB-01-L02`, `VAL-EXT-01`, `ORT-001`, `ORT-IA-001` |
 | `categoria` | checklist · estrutura · numeracao · tabela · valor · ortografia |
 | `status` | conforme · nao_conforme · atencao · verificar_manual · nao_aplicavel |
 | `severidade` | critico (4) · alto (3) · medio (2) · informativo (1) |
 | `esperado` / `encontrado` | o que o roteiro pede × o que o documento traz |
 | `evidencia` + `pagina` | trecho citável, para o analista localizar |
 | `orientacao` | o que fazer para corrigir |
-| `fundamento` | rastreabilidade (regra do roteiro, versão do checklist, regra do LT) |
+| `fundamento` | rastreabilidade (regra do roteiro, versão do checklist) |
+| `origem` | `deterministico` (regra, cálculo, padrão) ou `ia` (revisão do agente) |
 
 Todo achado é rastreável até a norma que o originou — requisito para que o
 relatório sirva de instrução processual.
@@ -202,7 +221,7 @@ valores/ortografia, 5 formatos de relatório, 7 tools MCP, 29 testes.
 | Falso "não conforme" por redação atípica | Médio — ruído, perda de confiança | `exige_todos_gatilhos`, gatilhos com sinônimos, calibração com amostra real |
 | PDF digitalizado | Médio — análise vazia | Detecção automática + aviso; OCR na Fase 4 |
 | Roteiro revisado e checklist desatualizado | Alto — análise contra norma vencida | Versão do checklist gravada em todo relatório; YAML editável sem deploy |
-| Dependência de Java (LanguageTool) | Baixo | Degradação graciosa para as regras próprias, com aviso |
+| Alucinação na revisão pelo agente | Alto — apontamento falso em peça processual | Trecho citado conferido literalmente contra o documento; recusados voltam com o motivo; sugestões separadas das constatações e fora do índice |
 
 ## 9. Backlog imediato
 
