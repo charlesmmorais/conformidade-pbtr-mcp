@@ -1,8 +1,11 @@
 # Configuração do Fly.io para o servidor MCP de conformidade de PB/TR.
-# Ajuste `app` e `primary_region` antes do primeiro deploy.
-# Ver docs/DEPLOY.md — em especial a seção sobre exposição do endpoint.
+#
+# O endpoint é PÚBLICO por opção: [http_service] expõe a app na internet sem
+# autenticação. As travas que tornam isso sustentável estão abaixo — teto de
+# upload, teto de análises em memória e limite de concorrência. Ver
+# docs/DEPLOY.md.
 
-app = "conformidade-pbtr"
+app = "conformidade-pbtr-mcp"
 primary_region = "gru"          # São Paulo
 
 [build]
@@ -16,8 +19,14 @@ primary_region = "gru"          # São Paulo
   CONFORMIDADE_PBTR_MODO = "remoto"
   CONFORMIDADE_PBTR_SAIDA = "/tmp/relatorios"
   CONFORMIDADE_PBTR_MAX_UPLOAD_MB = "25"
+  # Teto do cache de análises: sem isso, o estado que sobrevive entre as três
+  # chamadas do fluxo cresceria até derrubar a instância.
+  CONFORMIDADE_PBTR_MAX_ANALISES = "20"
+  CONFORMIDADE_PBTR_TTL_MIN = "30"
 
 [http_service]
+  # Endpoint público. Para fechar depois, remova esta seção inteira e acesse
+  # por Flycast (rede privada da organização).
   internal_port = 8080
   force_https = true
   auto_stop_machines = "suspend"

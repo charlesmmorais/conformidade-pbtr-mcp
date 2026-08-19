@@ -21,20 +21,30 @@ entregaria nada a ninguém, já que o disco é efêmero e some no próximo deplo
 O limite de upload é de 25 MB (`CONFORMIDADE_PBTR_MAX_UPLOAD_MB`). Base64 infla
 o payload em ~33%, então um PB de 25 MB chega como ~33 MB de JSON.
 
-## Antes do primeiro deploy: exposição do endpoint
+## Exposição do endpoint
 
-**Um endpoint MCP público e sem autenticação aceita análises de qualquer um.**
-Não há segredo no checklist, mas há consumo de CPU e memória por requisição, e
-os documentos enviados passam pela sua instância. Decida a exposição antes de
-subir:
+O `fly.toml` deste repositório sobe a app **pública na internet, sem
+autenticação** — `[http_service]` com IP público. Qualquer um que descubra a URL
+pode enviar um documento para análise.
 
-| Opção | Quando usar | Como |
+Três travas tornam isso sustentável, e todas são configuráveis por variável de
+ambiente:
+
+| Trava | Padrão | O que evita |
 |---|---|---|
-| **Rede privada (recomendado)** | O cliente é interno ou está na mesma organização Fly | Remova `[http_service]` do `fly.toml` e acesse por [Flycast](https://fly.io/docs/networking/flycast/) (`.flycast` interno), sem IP público |
-| **Proxy autenticado** | Precisa de acesso externo | Ponha um proxy (Cloudflare Access, oauth2-proxy) na frente e mantenha a app sem IP público |
-| **Token na aplicação** | Time pequeno, uso controlado | Configure a autenticação do FastMCP e guarde o segredo com `fly secrets set` |
+| `CONFORMIDADE_PBTR_MAX_UPLOAD_MB` | 25 | Upload gigante estourando a memória |
+| `CONFORMIDADE_PBTR_MAX_ANALISES` | 20 | Cache crescendo até o OOM |
+| `CONFORMIDADE_PBTR_TTL_MIN` | 30 | Análise esquecida ocupando memória |
+| `hard_limit` em `[http_service.concurrency]` | 16 | Requisições concorrentes derrubando a instância |
 
-Público e aberto só faz sentido para um ambiente de testes com dados fictícios.
+O que as travas **não** resolvem: o custo de CPU de quem abusar, e o fato de os
+documentos enviados passarem pela sua instância. Para PB real, considere fechar:
+
+| Opção | Como |
+|---|---|
+| **Rede privada** | Remova `[http_service]` do `fly.toml` e acesse por [Flycast](https://fly.io/docs/networking/flycast/) (`.flycast` interno), sem IP público |
+| **Proxy autenticado** | Cloudflare Access ou oauth2-proxy na frente, app sem IP público |
+| **Token na aplicação** | Autenticação do FastMCP, com o segredo em `fly secrets set` |
 
 ## Deploy
 
@@ -126,5 +136,7 @@ docker run --rm -p 8080:8080 conformidade-pbtr
 | `CONFORMIDADE_PBTR_MODO` | — | `remoto` recusa caminhos locais e embute os relatórios |
 | `CONFORMIDADE_PBTR_MAX_UPLOAD_MB` | `25` | Teto do upload em base64 |
 | `CONFORMIDADE_PBTR_SAIDA` | temp do sistema | Onde os relatórios são gravados |
+| `CONFORMIDADE_PBTR_MAX_ANALISES` | `20` | Teto de análises em memória (LRU) |
+| `CONFORMIDADE_PBTR_TTL_MIN` | `30` | Minutos até uma análise expirar do cache |
 | `CONFORMIDADE_PBTR_CHECKLIST` | checklist embarcado | Checklist alternativo |
 | `CONFORMIDADE_PBTR_RECURSOS` | `recursos/` | Diretório alternativo de recursos |

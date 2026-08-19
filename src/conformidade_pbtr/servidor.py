@@ -23,6 +23,9 @@ import base64
 import binascii
 import os
 import tempfile
+import time
+from collections import OrderedDict
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -71,10 +74,74 @@ MODO_REMOTO = os.environ.get("CONFORMIDADE_PBTR_MODO", "").lower() == "remoto"
 # limite do upload em base64, para não estourar a memória da instância
 MAX_UPLOAD_MB = float(os.environ.get("CONFORMIDADE_PBTR_MAX_UPLOAD_MB", "25"))
 
-# cache das análises da sessão
-_CACHE: dict[str, Relatorio] = {}
-_SEGMENTOS: dict[str, list[Any]] = {}
-_CONTEXTO_SAIDA: dict[str, dict[str, Any]] = {}
+# Teto do cache de análises. O fluxo tem três chamadas e o estado precisa
+# sobreviver entre elas, mas num servidor exposto o cache cresceria sem limite
+# até derrubar a instância — daí o descarte por idade e por quantidade.
+MAX_ANALISES = int(os.environ.get("CONFORMIDADE_PBTR_MAX_ANALISES", "20"))
+TTL_ANALISE_S = int(os.environ.get("CONFORMIDADE_PBTR_TTL_MIN", "30")) * 60
+
+
+@dataclass
+class _Analise:
+    """Estado de uma análise entre as três chamadas do fluxo."""
+
+    relatorio: Relatorio
+    segmentos: list[Any]
+    base: str
+    diretorio: str | None
+    retornar_conteudo: bool
+    tmp: tempfile.TemporaryDirectory | None
+    criado_em: float = field(default_factory=time.monotonic)
+    arquivos: list[Path] = field(default_factory=list)
+
+
+_ANALISES: OrderedDict[str, _Analise] = OrderedDict()
+
+
+def _descartar(chave: str) -> None:
+    """Remove uma análise e limpa o que ela deixou em disco."""
+    analise = _ANALISES.pop(chave, None)
+    if analise is None:
+        return
+    for arquivo in analise.arquivos:
+        try:
+            arquivo.unlink(missing_ok=True)
+        except OSError:
+            pass
+    if analise.tmp is not None:
+        try:
+            analise.tmp.cleanup()
+        except OSError:
+            pass
+
+
+def _expirar() -> None:
+    """Descarta análises velhas e mantém o cache dentro do teto (LRU)."""
+    agora = time.monotonic()
+    for chave in [k for k, v in _ANALISES.items() if agora - v.criado_em > TTL_ANALISE_S]:
+        _descartar(chave)
+    while len(_ANALISES) > MAX_ANALISES:
+        _descartar(next(iter(_ANALISES)))
+
+
+def _obter(chave: str) -> _Analise | None:
+    """Recupera uma análise, renovando sua posição no LRU."""
+    _expirar()
+    analise = _ANALISES.get(chave)
+    if analise is not None:
+        _ANALISES.move_to_end(chave)
+    return analise
+
+
+def _erro_analise_ausente(chave: str) -> dict[str, Any]:
+    return {
+        "erro": (
+            f"Análise '{chave}' não está mais em cache. As análises expiram em "
+            f"{TTL_ANALISE_S // 60} minutos ou quando o limite de {MAX_ANALISES} "
+            "é atingido. Rode analisar_conformidade novamente."
+        ),
+        "disponiveis": list(_ANALISES),
+    }
 
 
 def _chave(caminho: str) -> str:
@@ -237,21 +304,23 @@ def analisar_conformidade(
         return {"erro": str(exc), "checklists_disponiveis": checklists_disponiveis()}
 
     chave = _chave(str(caminho))
-    segmentos = mod_ortografia.segmentar(rel.documento) if revisar_texto else []
-    _CACHE[chave] = rel
-    _SEGMENTOS[chave] = segmentos
-    _CONTEXTO_SAIDA[chave] = {
-        "base": f"Relatorio_Conformidade_{caminho.stem[:60]}".replace(" ", "_"),
-        "diretorio": diretorio_saida,
-        "retornar_conteudo": retornar_conteudo,
-        "tmp": tmp,  # mantém o diretório temporário vivo enquanto a análise existir
-    }
+    _descartar(chave)  # reanálise do mesmo documento substitui a anterior
+    _ANALISES[chave] = _Analise(
+        relatorio=rel,
+        segmentos=mod_ortografia.segmentar(rel.documento) if revisar_texto else [],
+        base=f"Relatorio_Conformidade_{caminho.stem[:60]}".replace(" ", "_"),
+        diretorio=diretorio_saida,
+        retornar_conteudo=retornar_conteudo,
+        tmp=tmp,  # mantém o diretório temporário vivo enquanto a análise existir
+    )
+    _expirar()
+    segmentos = _ANALISES[chave].segmentos
 
     resultado = _sumario(rel)
     resultado["chave_analise"] = chave
 
     if formatos:
-        gerados, erros = _emitir(rel, chave, formatos)
+        gerados, erros = _emitir(chave, formatos)
         resultado["relatorios"] = gerados
         if erros:
             resultado["erros_geracao"] = erros
@@ -274,25 +343,25 @@ def analisar_conformidade(
     return resultado
 
 
-def _emitir(
-    rel: Relatorio, chave: str, formatos: list[str]
-) -> tuple[dict[str, Any], dict[str, str]]:
+def _emitir(chave: str, formatos: list[str]) -> tuple[dict[str, Any], dict[str, str]]:
     """Gera os relatórios de uma análise em cache."""
-    ctx = _CONTEXTO_SAIDA.get(chave, {})
-    saida = Path(ctx["diretorio"]).expanduser() if ctx.get("diretorio") else DIR_SAIDA
+    analise = _ANALISES[chave]
+    saida = Path(analise.diretorio).expanduser() if analise.diretorio else DIR_SAIDA
     saida.mkdir(parents=True, exist_ok=True)
-    base = ctx.get("base") or f"Relatorio_Conformidade_{chave}"
 
     gerados: dict[str, str] = {}
     erros: dict[str, str] = {}
     for fmt in formatos:
         ext = "md" if fmt in ("md", "markdown") else fmt
         try:
-            gerados[fmt] = FORMATOS[fmt](rel, saida / f"{base}.{ext}")
+            destino = saida / f"{analise.base}.{ext}"
+            gerados[fmt] = FORMATOS[fmt](analise.relatorio, destino)
+            if destino not in analise.arquivos:
+                analise.arquivos.append(destino)
         except Exception as exc:  # um formato quebrado não invalida a análise
             erros[fmt] = f"{type(exc).__name__}: {exc}"
 
-    if ctx.get("retornar_conteudo") or MODO_REMOTO:
+    if analise.retornar_conteudo or MODO_REMOTO:
         return _embutir(gerados), erros
     return gerados, erros
 
@@ -314,10 +383,11 @@ def obter_texto_para_revisao(
     `registrar_revisao_textual` confere se o trecho existe literalmente e
     descarta o que não conferir. Não parafraseie a citação.
     """
-    if chave_analise not in _CACHE:
-        return {"erro": f"Análise '{chave_analise}' não está em cache.", "disponiveis": list(_CACHE)}
+    analise = _obter(chave_analise)
+    if analise is None:
+        return _erro_analise_ausente(chave_analise)
 
-    segmentos = _SEGMENTOS.get(chave_analise, [])
+    segmentos = analise.segmentos
     fatia = segmentos[inicio : inicio + limite]
     restantes = max(0, len(segmentos) - (inicio + len(fatia)))
     return {
@@ -365,9 +435,10 @@ def registrar_revisao_textual(
     Os apontamentos entram no relatório como *sugestão de revisão*, separados
     dos achados determinísticos e fora do índice de conformidade.
     """
-    rel = _CACHE.get(chave_analise)
-    if rel is None:
-        return {"erro": f"Análise '{chave_analise}' não está em cache.", "disponiveis": list(_CACHE)}
+    analise = _obter(chave_analise)
+    if analise is None:
+        return _erro_analise_ausente(chave_analise)
+    rel = analise.relatorio
 
     # uma nova revisão substitui a anterior, para a tool ser idempotente
     rel.achados = [a for a in rel.achados if a.origem != Origem.IA]
@@ -376,7 +447,7 @@ def registrar_revisao_textual(
     rel.achados.extend(aceitos)
     analisador.recalcular(rel)
 
-    gerados, erros = _emitir(rel, chave_analise, formatos or ["md", "docx"])
+    gerados, erros = _emitir(chave_analise, formatos or ["md", "docx"])
 
     resultado: dict[str, Any] = {
         "chave_analise": chave_analise,
@@ -556,20 +627,17 @@ def gerar_relatorio(
 ) -> dict[str, Any]:
     """Renderiza em outro formato uma análise já executada nesta sessão, sem
     reprocessar o documento."""
-    rel = _CACHE.get(chave_analise)
-    if rel is None:
-        return {
-            "erro": f"Análise '{chave_analise}' não está em cache.",
-            "disponiveis": list(_CACHE),
-        }
-    saida = Path(diretorio_saida).expanduser() if diretorio_saida else DIR_SAIDA
-    saida.mkdir(parents=True, exist_ok=True)
-    ext = "md" if formato in ("md", "markdown") else formato
-    base = f"Relatorio_Conformidade_{chave_analise}".replace(" ", "_")
-    arquivo = FORMATOS[formato](rel, saida / f"{base}.{ext}")
-    if retornar_conteudo or MODO_REMOTO:
-        return {"relatorio": _embutir({formato: arquivo})[formato]}
-    return {"arquivo": arquivo}
+    analise = _obter(chave_analise)
+    if analise is None:
+        return _erro_analise_ausente(chave_analise)
+    if diretorio_saida:
+        analise.diretorio = diretorio_saida
+    if retornar_conteudo:
+        analise.retornar_conteudo = True
+    gerados, erros = _emitir(chave_analise, [formato])
+    if erros:
+        return {"erro": erros[formato]}
+    return {"relatorio" if (analise.retornar_conteudo or MODO_REMOTO) else "arquivo": gerados[formato]}
 
 
 # ------------------------------------------------------------ health
