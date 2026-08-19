@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "conformidade-pbtr": {
+      "command": "C:\\Users\\xales\\Documents\\Claude\\ConformidadePB\\mcp-conformidade-pbtr\\.venv\\Scripts\\conformidade-pbtr.exe",
+      "args": [],
+      "env": {
+        "CONFORMIDADE_PBTR_SAIDA": "C:\\Users\\xales\\Documents\\Claude\\ConformidadePB\\relatorios"
+      }
+    }
+  }
+}

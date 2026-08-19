@@ -1,0 +1,72 @@
+[project]
+name = "conformidade-pbtr-mcp"
+version = "0.1.0"
+description = "Análise automatizada de conformidade de Projetos Básicos e Termos de Referência (MCP server, pt-BR)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "SERPRO - Serviço Federal de Processamento de Dados" },
+]
+keywords = [
+    "mcp",
+    "model-context-protocol",
+    "licitacoes",
+    "contratacoes-publicas",
+    "projeto-basico",
+    "termo-de-referencia",
+    "conformidade",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Legal Industry",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: Portuguese (Brazilian)",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business",
+]
+
+dependencies = [
+    "fastmcp>=2.0",
+    "pdfplumber>=0.11",
+    "python-docx>=1.1",
+    "openpyxl>=3.1",
+    "reportlab>=4.0",
+    "PyYAML>=6.0",
+    "num2words>=0.5.13",
+    "language-tool-python>=2.8",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.5"]
+
+[project.urls]
+Repositorio = "https://github.com/charlesmmorais/conformidade-pbtr-mcp"
+Issues = "https://github.com/charlesmmorais/conformidade-pbtr-mcp/issues"
+
+[project.scripts]
+conformidade-pbtr = "conformidade_pbtr.servidor:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/conformidade_pbtr"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"recursos" = "conformidade_pbtr/recursos"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

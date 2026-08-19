@@ -1,0 +1,1290 @@
+﻿# ---------------------------------------------------------------------------
+# Checklist de Conformidade - Projetos Básicos (PB) e Termos de Referência (TR)
+# Fonte normativa: "[TI] Roteiro - Projetos Básicos e Termos de Referência"
+# Normas correlatas: LA 002 (Planejamento das Contratações), LA 008 (Contratação),
+#                    Lei 13.303/2016, Parecer LAA 0477/2024 (duração do contrato)
+#
+# Campos de cada regra:
+#   id                -> identificador estável (não reaproveitar após remoção)
+#   secao             -> seção do PB/TR a que se refere
+#   titulo            -> enunciado curto do que se verifica
+#   descricao         -> texto integral/parafraseado do roteiro
+#   aplicabilidade    -> tags de contexto; "sempre" = incondicional
+#   severidade        -> critico | alto | medio | informativo
+#   verificacao       -> presenca | numeracao | calculo | anexo | coerencia | manual
+#   gatilhos          -> regex (case-insensitive, sem acento sensível) que
+#                        evidenciam o atendimento do item no texto do PB
+#   orientacao        -> recomendação a constar no relatório quando não conforme
+# ---------------------------------------------------------------------------
+
+metadata:
+  versao: "1.0.0"
+  data_base: "2026-08-19"
+  fonte: "[TI] Roteiro - Projetos Básicos e Termos de Referência (1).docx"
+  responsavel: "DIRAF/SUPGA/GACON/GACOA - Divisão de Conformidade Administrativa"
+
+# Tags de aplicabilidade reconhecidas pelo motor de regras.
+taxonomia_aplicabilidade:
+  sempre: "Vale para qualquer PB/TR"
+  licitacao: "Contratação por licitação"
+  contratacao_direta: "Dispensa / contratação direta"
+  inexigibilidade: "Inexigibilidade de licitação"
+  servico: "Prestação de serviço"
+  bem: "Compra de bens/materiais"
+  consultoria: "Serviço de consultoria"
+  treinamento: "Cursos e treinamentos"
+  ordem_servico: "Contrato com emissão de Ordem de Serviço"
+  ordem_fornecimento: "Contrato com emissão de Ordem de Fornecimento"
+  chamados: "Contrato com abertura de chamados"
+  grupo: "Objeto agrupado (grupos de itens)"
+  ativos: "Contratação que gera ativos imobilizados"
+  hardware: "Hardware ou preço atrelado a moeda estrangeira"
+  subscricao: "Subscrições / licenciamento por período"
+  garantia_tecnica: "Aquisição com garantia técnica"
+  garantia_execucao: "Exigência de garantia de execução contratual"
+  arp: "Ata de Registro de Preços"
+  marca_modelo: "Indicação de marca e modelo"
+  vigencia_acima_60: "Vigência total superior a 60 meses"
+  pagamento_mensal: "Pagamento em parcelas mensais"
+  bb_sao_paulo: "Entrega/serviço no endereço do Banco do Brasil em São Paulo"
+  rescisao_antecipada: "Previsão de cláusula de rescisão antecipada"
+  amostra: "Exigência de amostra"
+  atestado_nao_padrao: "Atestado de capacidade técnica fora do padrão"
+
+# ===========================================================================
+regras:
+
+# --- 0. Diretrizes gerais e Aba Itens ------------------------------------
+  - id: PB-00-001
+    secao: "0 - Diretrizes Gerais"
+    titulo: "Contratação baseada em Estudo Técnico Preliminar (ETP)"
+    descricao: >-
+      A contratação deve ser baseada em um Estudo Técnico Preliminar (ETP),
+      que deve constar dos anexos com status Finalizado.
+    aplicabilidade: [sempre]
+    severidade: critico
+    verificacao: presenca
+    gatilhos:
+      - "estudo t[eé]cnico preliminar"
+      - "\\bETP\\b"
+    orientacao: >-
+      Referenciar expressamente o ETP que fundamenta a contratação e anexá-lo
+      com status Finalizado.
+
+  - id: PB-00-002
+    secao: "0 - Diretrizes Gerais"
+    titulo: "Vinculação ao Documento de Oficialização da Demanda (DOD)"
+    descricao: >-
+      A contratação deve estar vinculada a uma necessidade do demandante,
+      formalizada em Documento de Oficialização da Demanda.
+    aplicabilidade: [sempre]
+    severidade: critico
+    verificacao: presenca
+    gatilhos:
+      - "documento de oficializa[cç][aã]o da demanda"
+      - "\\bDOD\\b"
+    orientacao: "Citar o(s) DOD(s) que originaram a demanda e anexá-lo(s)."
+
+  - id: PB-00-003
+    secao: "0 - Aba Itens"
+    titulo: "Aderência entre a Aba Itens e as quantidades do PB"
+    descricao: >-
+      Conferir se a quantidade da Aba Itens corresponde à quantidade do PB
+      (ex.: quantidades da seção 2; número de meses do serviço).
+    aplicabilidade: [sempre]
+    severidade: critico
+    verificacao: coerencia
+    gatilhos: []
+    orientacao: >-
+      Conferência manual/assistida: a Aba Itens do sistema não integra o PDF.
+      Confrontar quantidades por item e o número de meses declarado na vigência.
+
+# --- 1. Objeto -------------------------------------------------------------
+  - id: PB-01-001
+    secao: "1 - Objeto"
+    titulo: "Definição sucinta do objeto"
+    descricao: "Contratação: definição sucinta do objeto a ser contratado."
+    aplicabilidade: [sempre]
+    severidade: critico
+    verificacao: presenca
+    gatilhos:
+      - "^\\s*1[\\.\\s].{0,40}objeto"
+      - "contrata[cç][aã]o de"
+    orientacao: >-
+      Incluir seção 1 com definição sucinta e autoexplicativa do objeto,
+      compatível com a especificação detalhada da seção 2.
+
+# --- 2. Especificação do objeto -------------------------------------------
+  - id: PB-02-001
+    secao: "2 - Especificação do Objeto"
+    titulo: "Especificação detalhada e quantidade por localidade"
+    descricao: >-
+      Descrição detalhada da especificação do objeto e da quantidade
+      distribuída por localidade. Conferir a soma das quantidades.
+    aplicabilidade: [sempre]
+    severidade: critico
+    verificacao: calculo
+    gatilhos:
+      - "quantidade"
+      - "localidade"
+    orientacao: >-
+      Detalhar a especificação e distribuir as quantidades por localidade;
+      a soma das parcelas deve fechar com o total do item.
+
+  - id: PB-02-002
+    secao: "2 - Especificação do Objeto"
+    titulo: "Indicação de Itens e Grupos"
+    descricao: "Em caso de licitação, indicação dos Itens e Grupos."
+    aplicabilidade: [licitacao]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "\\bgrupo\\s*\\d"
+      - "\\bitem\\s*\\d"
+      - "\\blote\\b"
+    orientacao: "Indicar expressamente a composição de itens e grupos do certame."
+
+  - id: PB-02-003
+    secao: "2 - Especificação do Objeto"
+    titulo: "Dados completos da localidade de entrega/prestação"
+    descricao: >-
+      Localidade de entrega ou prestação de serviço contendo endereço, CEP,
+      CNPJ, inscrição estadual e inscrição municipal.
+    aplicabilidade: [sempre]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "\\bCEP\\b"
+      - "\\bCNPJ\\b"
+      - "inscri[cç][aã]o estadual"
+      - "inscri[cç][aã]o municipal"
+    exige_todos_gatilhos: true
+    orientacao: >-
+      Completar os dados da localidade: endereço, CEP, CNPJ, inscrição
+      estadual e inscrição municipal.
+
+  - id: PB-02-004
+    secao: "2 - Especificação do Objeto"
+    titulo: "Regras e prazo de recebimento conforme cláusulas padrão"
+    descricao: >-
+      Regras e prazo de recebimento devem seguir as Cláusulas Padrão
+      (recebimento provisório e definitivo).
+    aplicabilidade: [sempre]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "recebimento provis[oó]rio"
+      - "recebimento definitivo"
+    orientacao: >-
+      Inserir as cláusulas padrão de recebimento provisório e definitivo
+      (arquivo "Cláusulas Padrão").
+
+  - id: PB-02-005
+    secao: "2 - Especificação do Objeto"
+    titulo: "Prazo de execução do serviço"
+    descricao: "Prestação de serviço: indicar o prazo de execução."
+    aplicabilidade: [servico]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "prazo de execu[cç][aã]o"
+    orientacao: "Declarar o prazo de execução dos serviços."
+
+  - id: PB-02-006
+    secao: "2 - Especificação do Objeto"
+    titulo: "Cláusulas de Ordem de Serviço"
+    descricao: "Em caso de Ordem de Serviço, aplicar as Cláusulas de OS e OF."
+    aplicabilidade: [ordem_servico]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "ordem de servi[cç]o"
+      - "\\bOS\\b"
+    orientacao: "Incluir as cláusulas padrão de Ordem de Serviço."
+
+  - id: PB-02-007
+    secao: "2 - Especificação do Objeto"
+    titulo: "Materiais acessórios: quantidade, especificação e substituição"
+    descricao: >-
+      Serviços com disponibilização de materiais acessórios: indicar
+      quantidades por localidade, especificação dos materiais e regras de
+      substituição quando necessário.
+    aplicabilidade: [servico]
+    severidade: medio
+    verificacao: presenca
+    gatilhos:
+      - "material acess[oó]rio|materiais acess[oó]rios"
+      - "substitui[cç][aã]o"
+    orientacao: >-
+      Detalhar quantidades por localidade, especificação e regra de
+      substituição dos materiais acessórios.
+
+  - id: PB-02-008
+    secao: "2 - Especificação do Objeto"
+    titulo: "Prazo de entrega dos bens"
+    descricao: "Compras de bens/materiais: indicar o prazo de entrega."
+    aplicabilidade: [bem]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "prazo de entrega"
+    orientacao: "Declarar o prazo de entrega dos bens."
+
+  - id: PB-02-009
+    secao: "2 - Especificação do Objeto"
+    titulo: "Fornecimento único ou parcelado e cronograma de entrega"
+    descricao: >-
+      Descrever se o fornecimento será de uma só vez ou parceladamente; no
+      segundo caso, estabelecer cronograma de entrega com descrição do produto
+      e prazos distintos por produto, se for o caso.
+    aplicabilidade: [bem]
+    severidade: medio
+    verificacao: presenca
+    gatilhos:
+      - "parcelad|de uma s[oó] vez|cronograma de entrega"
+    orientacao: >-
+      Explicitar a forma de fornecimento e, se parcelado, apresentar o
+      cronograma de entrega.
+
+  - id: PB-02-010
+    secao: "2 - Especificação do Objeto"
+    titulo: "Acondicionamento dos produtos"
+    descricao: >-
+      Descrever o acondicionamento (pacotes, caixas, envelopes, descarregamento
+      via website).
+    aplicabilidade: [bem]
+    severidade: medio
+    verificacao: presenca
+    gatilhos:
+      - "acondicionamento|embalagem|pacote|caixa"
+    orientacao: "Descrever a forma de acondicionamento/entrega dos produtos."
+
+  - id: PB-02-011
+    secao: "2 - Especificação do Objeto"
+    titulo: "Cláusulas de Ordem de Fornecimento"
+    descricao: "Em caso de Ordem de Fornecimento, aplicar as Cláusulas de OS e OF."
+    aplicabilidade: [ordem_fornecimento]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "ordem de fornecimento"
+    orientacao: "Incluir as cláusulas padrão de Ordem de Fornecimento."
+
+  - id: PB-02-012
+    secao: "2 - Especificação do Objeto"
+    titulo: "Consultoria: modo de prestação e apresentação de resultados"
+    descricao: >-
+      Consultoria: descrever o modo da prestação dos serviços e como serão
+      apresentados os resultados.
+    aplicabilidade: [consultoria]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "produtos? (a serem )?entregues|entreg[aá]ve|relat[oó]rio final|apresenta[cç][aã]o dos resultados"
+    orientacao: >-
+      Definir o modo de prestação e a forma de apresentação dos produtos da
+      consultoria.
+
+  - id: PB-02-013
+    secao: "2 - Especificação do Objeto"
+    titulo: "Serviços em equipamentos/softwares instalados: identificação do parque"
+    descricao: >-
+      Indicar o local, descrever os equipamentos de forma técnica, citar o
+      número de patrimônio ou part number e as quantidades.
+    aplicabilidade: [servico]
+    severidade: medio
+    verificacao: presenca
+    gatilhos:
+      - "patrim[oô]nio|part\\s?number|\\bP/N\\b|n[uú]mero de s[eé]rie"
+    orientacao: >-
+      Identificar tecnicamente os equipamentos/softwares atendidos, com
+      patrimônio ou part number, local e quantidades.
+
+  - id: PB-02-014
+    secao: "2 - Especificação do Objeto"
+    titulo: "Treinamento: conteúdo, carga horária, público, turmas e modalidade"
+    descricao: >-
+      Cursos e treinamentos devem trazer conteúdo programático, carga horária
+      (com cronograma), público-alvo, quantidade de alunos e turmas e a
+      modalidade.
+    aplicabilidade: [treinamento]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "conte[uú]do program[aá]tico"
+      - "carga hor[aá]ria"
+      - "p[uú]blico[- ]alvo"
+      - "turma"
+      - "modalidade"
+    exige_todos_gatilhos: true
+    orientacao: >-
+      Completar a especificação do treinamento: conteúdo programático, carga
+      horária/cronograma, público-alvo, nº de alunos e turmas e modalidade.
+
+  - id: PB-02-015
+    secao: "2 - Especificação do Objeto"
+    titulo: "Serviço iniciado após recebimento definitivo: período estimado"
+    descricao: >-
+      No caso de serviço iniciando após o recebimento definitivo de licenças ou
+      equipamentos, informar que o período de execução é estimado, pois os
+      serviços somente serão iniciados e pagos após a emissão do Termo de
+      Recebimento Definitivo.
+    aplicabilidade: [servico]
+    severidade: medio
+    verificacao: presenca
+    gatilhos:
+      - "per[ií]odo de execu[cç][aã]o .{0,30}estimad|termo de recebimento definitivo"
+    orientacao: >-
+      Registrar que o período de execução é estimado e condicionado à emissão
+      do Termo de Recebimento Definitivo das licenças/equipamentos.
+
+# --- 3. Níveis de serviço e sancionamentos --------------------------------
+  - id: PB-03-001
+    secao: "3 - Níveis de Serviço e Sancionamentos"
+    titulo: "Padrões de desempenho e qualidade com forma de cálculo"
+    descricao: >-
+      Estabelecer padrões de desempenho e qualidade contendo definição de
+      responsabilidades, forma de cálculo, fato gerador (como obter),
+      periodicidade de coleta e prazo de disponibilização.
+    aplicabilidade: [sempre]
+    severidade: critico
+    verificacao: presenca
+    gatilhos:
+      - "n[ií]ve(l|is) de servi[cç]o|\\bSLA\\b|indicador"
+      - "forma de c[aá]lculo|f[oó]rmula"
+      - "periodicidade"
+    exige_todos_gatilhos: true
+    orientacao: >-
+      Descrever cada indicador com responsável, fórmula de cálculo, fato
+      gerador, periodicidade de coleta e prazo de disponibilização.
+
+  - id: PB-03-002
+    secao: "3 - Níveis de Serviço e Sancionamentos"
+    titulo: "Penalidades objetivas, suficientes e claras"
+    descricao: >-
+      Prever penalidades de forma objetiva, suficiente e clara. Nos contratos
+      com abertura de chamados as penalidades geralmente são cobradas por hora
+      ou fração de hora de atraso.
+    aplicabilidade: [sempre]
+    severidade: critico
+    verificacao: presenca
+    gatilhos:
+      - "penalidade|multa|san[cç][aã]o|glosa"
+    orientacao: >-
+      Prever penalidades com base de cálculo, percentual/valor e evento
+      gerador definidos objetivamente.
+
+  - id: PB-03-003
+    secao: "3 - Níveis de Serviço e Sancionamentos"
+    titulo: "Contratos com chamados: conjunto mínimo de parâmetros"
+    descricao: >-
+      Verificar existência e coerência entre: regime de atendimento; horário de
+      atendimento; manutenção em feriados nacionais no caso de 24x7; nível de
+      serviço; tempo máximo para início do atendimento; tempo máximo para
+      conclusão; canal de abertura de chamados; horário para abertura de
+      chamados (distinto do horário de atendimento); entrega de relatórios.
+    aplicabilidade: [chamados]
+    severidade: critico
+    verificacao: coerencia
+    gatilhos:
+      - "regime de atendimento"
+      - "hor[aá]rio de atendimento"
+      - "tempo m[aá]ximo para in[ií]cio"
+      - "tempo m[aá]ximo para conclus[aã]o"
+      - "canal .{0,20}abertura|abertura de chamados"
+      - "relat[oó]rio"
+    exige_todos_gatilhos: true
+    orientacao: >-
+      Completar os parâmetros ausentes e verificar coerência entre eles
+      (ex.: 24x7 exige definição sobre feriados nacionais; horário de abertura
+      de chamados não se confunde com horário de atendimento).
+
+  - id: PB-03-004
+    secao: "3 - Níveis de Serviço e Sancionamentos"
+    titulo: "Penalidade por atraso na entrega de relatórios"
+    descricao: >-
+      Quando o relatório for condição para o recebimento definitivo, NÃO prever
+      penalidade pelo atraso (a dilação do pagamento já é a penalidade). Quando
+      o pagamento ocorrer antes da entrega dos relatórios, prever penalidade
+      (valor fixo ou percentual por dia de atraso).
+    aplicabilidade: [chamados, servico]
+    severidade: alto
+    verificacao: coerencia
+    gatilhos:
+      - "relat[oó]rio"
+    orientacao: >-
+      Alinhar a existência da penalidade ao momento do pagamento: sem
+      penalidade quando o relatório condiciona o recebimento definitivo; com
+      penalidade quando o pagamento antecede a entrega.
+
+  - id: PB-03-005
+    secao: "3 - Níveis de Serviço e Sancionamentos"
+    titulo: "Penalidade por atraso na conclusão de Ordem de Serviço"
+    descricao: "Ordem de Serviço: prever penalidade no caso de atraso na conclusão dos serviços."
+    aplicabilidade: [ordem_servico]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "atraso .{0,40}conclus[aã]o"
+    orientacao: "Incluir penalidade específica para atraso na conclusão da OS."
+
+# --- 4. Valores e forma de pagamento --------------------------------------
+  - id: PB-04-001
+    secao: "4 - Valores e Forma de Pagamento"
+    titulo: "Valor total em numeral e por extenso"
+    descricao: >-
+      Indicar o valor total estimado ou definitivo da contratação, escrevendo-o
+      em numeral e por extenso.
+    aplicabilidade: [sempre]
+    severidade: critico
+    verificacao: calculo
+    gatilhos:
+      - "valor (total|global)"
+      - "R\\$\\s*[\\d\\.]+,\\d{2}"
+    orientacao: >-
+      Registrar o valor total em algarismos e por extenso, com conferência de
+      equivalência entre as duas formas.
+
+  - id: PB-04-002
+    secao: "4 - Valores e Forma de Pagamento"
+    titulo: "Tabela de preços com Descrição, Quantidade, Valor Unitário e Valor Total"
+    descricao: >-
+      Tabela com, no mínimo: Descrição, Quantidade, Valor Unitário e Valor
+      Total.
+    aplicabilidade: [sempre]
+    severidade: critico
+    verificacao: calculo
+    gatilhos:
+      - "valor unit[aá]rio"
+      - "valor total"
+      - "quantidade"
+    exige_todos_gatilhos: true
+    orientacao: >-
+      Estruturar a tabela de preços com as quatro colunas mínimas e conferir
+      a aritmética (Qtd x Unitário = Total; soma dos totais = valor global).
+
+  - id: PB-04-003
+    secao: "4 - Valores e Forma de Pagamento"
+    titulo: "Valor Total Mensal em pagamentos mensais"
+    descricao: "Caso o pagamento seja mensal, a tabela deve conter Valor Total Mensal."
+    aplicabilidade: [pagamento_mensal]
+    severidade: alto
+    verificacao: calculo
+    gatilhos:
+      - "valor (total )?mensal|mensalidade"
+    orientacao: >-
+      Acrescentar a coluna/linha de Valor Total Mensal e conferir que
+      mensal x nº de meses = valor total do item.
+
+  - id: PB-04-004
+    secao: "4 - Valores e Forma de Pagamento"
+    titulo: "Prazo e forma de pagamento conforme cláusulas padrão"
+    descricao: "Especificar prazo e forma de pagamento conforme Cláusulas Padrão."
+    aplicabilidade: [sempre]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "forma de pagamento|prazo de pagamento|nota fiscal"
+    orientacao: "Inserir as cláusulas padrão de pagamento."
+
+  - id: PB-04-005
+    secao: "4 - Valores e Forma de Pagamento"
+    titulo: "Vedação à antecipação de pagamento"
+    descricao: >-
+      É vedada a antecipação do pagamento, salvo com justificativas específicas
+      e suficientes (seção 5) que resguardem a Administração dos riscos
+      inerentes à operação.
+    aplicabilidade: [sempre]
+    severidade: critico
+    verificacao: coerencia
+    gatilhos:
+      - "antecipa[cç][aã]o (do )?pagamento|pagamento antecipado"
+    inverter: true
+    orientacao: >-
+      Se houver pagamento antecipado, apresentar na seção 5 justificativa
+      específica e as medidas de mitigação de risco; caso contrário, suprimir.
+
+  - id: PB-04-006
+    secao: "4 - Valores e Forma de Pagamento"
+    titulo: "Faturamento para a Regional São Paulo (Banco do Brasil/SP)"
+    descricao: >-
+      Quando houver entrega ou serviço para o endereço do Banco do Brasil em
+      São Paulo, incluir cláusula definindo que o faturamento será feito para a
+      Regional São Paulo.
+    aplicabilidade: [bb_sao_paulo]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "regional s[aã]o paulo"
+    orientacao: "Incluir a cláusula de faturamento pela Regional São Paulo."
+
+  - id: PB-04-007
+    secao: "4 - Valores e Forma de Pagamento"
+    titulo: "Regras de pró-rata (primeiro e último mês)"
+    descricao: >-
+      Quando for o caso, prever rateio de 1/30 do valor da contraprestação
+      mensal por dia no primeiro e no último mês, com cobrança dos meses
+      subsequentes no período de 1 a 30.
+    aplicabilidade: [pagamento_mensal]
+    severidade: medio
+    verificacao: presenca
+    gatilhos:
+      - "pr[oó][- ]rata|1/30|um trinta avos"
+    orientacao: >-
+      Incluir as três alíneas de pró-rata (primeiro mês, meses subsequentes e
+      último mês de vigência).
+
+# --- 5. Justificativa da contratação --------------------------------------
+  - id: PB-05-001
+    secao: "5 - Justificativa da Contratação"
+    titulo: "Motivo da contratação (histórico e necessidade)"
+    descricao: >-
+      Apresentar o motivo da contratação: breve histórico e necessidade,
+      podendo abordar vinculação ao PE/PDTI/PETI, interesses de clientes,
+      viabilidade econômica (inclusive cobertura por contratos de receita),
+      requisitos de contratação, plano de sustentação, estratégia de
+      contratação, vedações, obrigações, riscos e resultados esperados.
+    aplicabilidade: [sempre]
+    severidade: critico
+    verificacao: presenca
+    gatilhos:
+      - "justificativa da contrata[cç][aã]o|necessidade da contrata[cç][aã]o"
+    orientacao: "Desenvolver a seção 5 com histórico, necessidade e resultados esperados."
+
+  - id: PB-05-002
+    secao: "5 - Justificativa da Contratação"
+    titulo: "Vinculação ao PE, PDTI e PETI"
+    descricao: "Demonstrar vinculação ao Planejamento Estratégico, PDTI e PETI."
+    aplicabilidade: [sempre]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "planejamento estrat[eé]gico|\\bPDTI\\b|\\bPETI\\b|\\bPE\\b"
+    orientacao: "Indicar objetivo/iniciativa do PE, PDTI ou PETI atendido pela contratação."
+
+  - id: PB-05-003
+    secao: "5 - Justificativa da Contratação"
+    titulo: "Consequências da não contratação"
+    descricao: "Descrever as consequências da não contratação."
+    aplicabilidade: [sempre]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "consequ[eê]ncias? da n[aã]o contrata[cç][aã]o|caso a contrata[cç][aã]o n[aã]o (se )?(ocorra|efetive)"
+    orientacao: "Acrescentar parágrafo sobre os impactos da não contratação."
+
+  - id: PB-05-004
+    secao: "5 - Justificativa da Contratação"
+    titulo: "Justificativa da quantidade"
+    descricao: "Justificar as quantidades contratadas."
+    aplicabilidade: [sempre]
+    severidade: critico
+    verificacao: presenca
+    gatilhos:
+      - "justificativa (da|das) quantidade|dimensionamento .{0,30}quantidad|mem[oó]ria de c[aá]lculo"
+    orientacao: >-
+      Apresentar memória de cálculo/dimensionamento que sustente cada
+      quantidade solicitada.
+
+  - id: PB-05-005
+    secao: "5 - Justificativa da Contratação"
+    titulo: "Histórico de contratos anteriores com comparativo de preços"
+    descricao: >-
+      Histórico de contratos anteriores (RG, fornecedor, objeto e vigência),
+      com comparativo de preços e destaque para as principais diferenças de
+      especificação e quantidade em relação à contratação atual, acompanhado de
+      justificativas técnicas para eventuais variações.
+    aplicabilidade: [sempre]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "contrat(o|os|a[cç][oõ]es) anterior|hist[oó]rico de contrat|\\bRG\\s*\\d"
+    orientacao: >-
+      Incluir tabela com RG, fornecedor, objeto, vigência e preço dos contratos
+      anteriores, com justificativa técnica das variações.
+
+  - id: PB-05-006
+    secao: "5 - Justificativa da Contratação"
+    titulo: "Justificativa da exigência de garantia de execução"
+    descricao: "Quando for o caso, justificar a exigência de garantia de execução."
+    aplicabilidade: [garantia_execucao]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "garantia de execu[cç][aã]o"
+    orientacao: "Justificar a exigência e o percentual da garantia de execução."
+
+  - id: PB-05-007
+    secao: "5 - Justificativa da Contratação"
+    titulo: "Consultoria: fundamentação da necessidade com indicadores (5.1)"
+    descricao: >-
+      Apresentar a fundamentação da necessidade com descrição do cenário atual
+      ou do problema, dados de eficiência operacional, indicadores de
+      conformidade e governança, índice de satisfação de clientes, impacto
+      financeiro ou outros indicadores, bem como os resultados pretendidos,
+      permitindo avaliar a efetividade da implementação dos produtos.
+    aplicabilidade: [consultoria]
+    severidade: critico
+    verificacao: presenca
+    gatilhos:
+      - "cen[aá]rio atual|indicador|efici[eê]ncia operacional"
+    orientacao: >-
+      Complementar a seção 5 com indicadores mensuráveis do cenário atual e dos
+      resultados esperados (Justificativas Obrigatórias de consultoria, 5.1).
+
+  - id: PB-05-008
+    secao: "5 - Justificativa da Contratação"
+    titulo: "Consultoria: fundamentação do modelo de contratação (5.2)"
+    descricao: >-
+      Fundamentar a definição do modelo de contratação, dos requisitos e dos
+      produtos a serem entregues, demonstrando ser a solução mais adequada.
+    aplicabilidade: [consultoria]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "modelo de contrata[cç][aã]o|solu[cç][aã]o mais adequada"
+    orientacao: "Justificar o modelo de contratação e os produtos definidos."
+
+  - id: PB-05-009
+    secao: "5 - Justificativa da Contratação"
+    titulo: "Consultoria: comprovação da impossibilidade de execução interna (5.3)"
+    descricao: >-
+      Comprovar que os serviços não podem ser executados por empregados do
+      Serpro, seja pela inexistência ou indisponibilidade de pessoal com as
+      competências exigidas, ou pela necessidade imprescindível de um olhar
+      externo.
+    aplicabilidade: [consultoria]
+    severidade: critico
+    verificacao: presenca
+    gatilhos:
+      - "n[aã]o pode(m)? ser executad|olhar externo|indisponibilidade de pessoal|corpo t[eé]cnico pr[oó]prio"
+    orientacao: >-
+      Comprovar a inexistência/indisponibilidade de pessoal próprio ou a
+      necessidade de olhar externo.
+
+  - id: PB-05-010
+    secao: "5 - Justificativa da Contratação"
+    titulo: "Consultoria: estudo sobre contratações anteriores do mesmo tipo (5.4)"
+    descricao: >-
+      Estudo sobre contratações anteriores da mesma consultoria, informando se
+      os produtos foram finalizados e implantados, resultados e conhecimentos
+      obtidos, justificando a nova contratação e a ausência de sobreposição por
+      contratações sucessivas do mesmo objeto.
+    aplicabilidade: [consultoria]
+    severidade: critico
+    verificacao: presenca
+    gatilhos:
+      - "contrata[cç][oõ]es anteriores|sobreposi[cç][aã]o|contrata[cç][oõ]es sucessivas"
+    orientacao: >-
+      Demonstrar o resultado das consultorias anteriores e a ausência de
+      sobreposição de objeto.
+
+  - id: PB-05-011
+    secao: "5 - Justificativa da Contratação"
+    titulo: "Consultoria: alinhamento com o planejamento do Serpro (5.5)"
+    descricao: >-
+      Demonstrar o alinhamento da contratação com o planejamento estratégico,
+      de negócio ou de tecnologia do Serpro.
+    aplicabilidade: [consultoria]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "planejamento (estrat[eé]gico|de neg[oó]cio|de tecnologia)"
+    orientacao: "Vincular a consultoria ao planejamento corporativo."
+
+# --- 5.x Declarações -------------------------------------------------------
+  - id: PB-05-101
+    secao: "5 - Declarações"
+    titulo: "Declaração de sustentabilidade (art. 27, §2º, Lei 13.303/2016)"
+    descricao: >-
+      "Para essa contratação serão observados os critérios de sustentabilidade
+      ambiental aplicáveis à espécie e de responsabilidade social corporativa
+      compatível com o mercado em que o SERPRO atua, na esteira do § 2º do art.
+      27 da Lei nº 13.303/2016."
+    aplicabilidade: [sempre]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "sustentabilidade ambiental"
+      - "13\\.?303"
+    exige_todos_gatilhos: true
+    orientacao: "Inserir a declaração padrão de sustentabilidade."
+
+  - id: PB-05-102
+    secao: "5 - Declarações"
+    titulo: "Declaração de integridade (art. 32, V, Lei 13.303/2016; TR-014/2021; PCINT)"
+    descricao: >-
+      "Para esta contratação foi observada a política de integridade de acordo
+      com art. 32, inc. V, da Lei nº 13.303/2016 e também o Código de Ética,
+      Conduta e Integridade do SERPRO (TR-014/2021) e o Programa corporativo de
+      Integridade do SERPRO - PCINT (TR-138/2022)."
+    aplicabilidade: [sempre]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "pol[ií]tica de integridade|c[oó]digo de [eé]tica|PCINT"
+    orientacao: "Inserir a declaração padrão de integridade."
+
+  - id: PB-05-103
+    secao: "5 - Declarações"
+    titulo: "Vinculação ao Plano de Contratações Anual (PCA)"
+    descricao: >-
+      Indicar a vinculação ao PCA, informando se os DODs estão previstos,
+      foram incluídos intempestivamente, foram previstos na projeção dos
+      contratos vigentes ou aguardam aprovação para inclusão.
+    aplicabilidade: [sempre]
+    severidade: critico
+    verificacao: presenca
+    gatilhos:
+      - "plano de contrata[cç][oõ]es|\\bPCA\\b"
+    orientacao: >-
+      Incluir o item de vinculação ao PCA com a hipótese aplicável e o ano de
+      referência do plano.
+
+  - id: PB-05-104
+    secao: "5 - Declarações"
+    titulo: "Justificativa do não parcelamento do objeto"
+    descricao: "Em caso de grupo, justificar o não parcelamento do objeto."
+    aplicabilidade: [licitacao, grupo]
+    severidade: critico
+    verificacao: presenca
+    gatilhos:
+      - "n[aã]o parcelamento|parcelamento do objeto"
+    orientacao: >-
+      Justificar tecnicamente o agrupamento e a inviabilidade/inconveniência do
+      parcelamento.
+
+  - id: PB-05-105
+    secao: "5 - Declarações"
+    titulo: "Declaração sobre permissão de consórcio"
+    descricao: >-
+      Declaração de permissão ou não de consórcio com a respectiva
+      justificativa.
+    aplicabilidade: [licitacao]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "cons[oó]rcio"
+    orientacao: "Declarar e justificar a permissão ou vedação de consórcio."
+
+  - id: PB-05-106
+    secao: "5 - Declarações"
+    titulo: "Declaração de que os bens/serviços são comuns"
+    descricao: "Declaração de que os bens ou serviços são comuns."
+    aplicabilidade: [licitacao]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "bens? (e|ou) servi[cç]os? comuns|s[aã]o comuns"
+    orientacao: "Inserir a declaração de que o objeto é bem/serviço comum."
+
+  - id: PB-05-107
+    secao: "5 - Declarações"
+    titulo: "Declaração de bens e serviços de TIC (art. 16-A, Lei 8.248/1991)"
+    descricao: >-
+      Quando for o caso, declarar que os itens contratados são bens e serviços
+      de tecnologia da informação e comunicação, para fins do art. 16-A da Lei
+      nº 8.248, de 23/10/1991.
+    aplicabilidade: [sempre]
+    severidade: medio
+    verificacao: presenca
+    gatilhos:
+      - "16-A|8\\.?248"
+    orientacao: "Inserir a declaração de caracterização como bem/serviço de TIC."
+
+  - id: PB-05-108
+    secao: "5 - Declarações"
+    titulo: "Declaração sobre serviços contínuos e dedicação exclusiva de mão de obra"
+    descricao: >-
+      Quando for o caso, declarar que os serviços são contínuos e prestados com
+      ou sem dedicação exclusiva de mão de obra.
+    aplicabilidade: [servico]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "servi[cç]os? cont[ií]nuos?|dedica[cç][aã]o exclusiva"
+    orientacao: >-
+      Declarar a natureza contínua (ou não) do serviço e o regime de dedicação
+      de mão de obra — condição para prorrogação contratual.
+
+  - id: PB-05-109
+    secao: "5 - Declarações"
+    titulo: "Justificativa da cláusula de rescisão antecipada"
+    descricao: "Quando incluir cláusula de rescisão antecipada, justificar."
+    aplicabilidade: [rescisao_antecipada]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "rescis[aã]o antecipada"
+    orientacao: "Justificar a inclusão da cláusula de rescisão antecipada."
+
+  - id: PB-05-110
+    secao: "5 - Declarações"
+    titulo: "Expectativa de vida útil dos ativos (informação para a SUPGF)"
+    descricao: >-
+      Quando houver Ativos, informar a expectativa de vida útil.
+      Ex.: "5.X.1. Para os itens descritos aplica-se a definição de Expectativa
+      de Vida Útil de 5 (cinco) anos."
+    aplicabilidade: [ativos]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "vida [uú]til"
+    orientacao: "Incluir o item de expectativa de vida útil dirigido à SUPGF."
+
+  - id: PB-05-111
+    secao: "5 - Declarações"
+    titulo: "Justificativa para indicação de marca e modelo"
+    descricao: "Quando houver indicação de marca e modelo, apresentar justificativa."
+    aplicabilidade: [marca_modelo]
+    severidade: critico
+    verificacao: presenca
+    gatilhos:
+      - "marca e modelo|marca/modelo"
+    orientacao: >-
+      Justificar tecnicamente a indicação de marca/modelo (padronização,
+      compatibilidade ou exclusividade).
+
+  - id: PB-05-112
+    secao: "5 - Declarações"
+    titulo: "Justificativa de atestado de capacidade fora do padrão"
+    descricao: >-
+      Caso o atestado de capacidade exigido não seja o padrão, justificar as
+      exigências.
+    aplicabilidade: [atestado_nao_padrao]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "atestado de capacidade"
+    orientacao: "Justificar as exigências específicas do atestado de capacidade técnica."
+
+# --- 6. Seleção do fornecedor ---------------------------------------------
+  - id: PB-06-001
+    secao: "6 - Seleção do Fornecedor"
+    titulo: "Fundamentação legal conforme Norma LA 008"
+    descricao: "Indicar a fundamentação legal da contratação conforme a Norma LA 008."
+    aplicabilidade: [sempre]
+    severidade: critico
+    verificacao: presenca
+    gatilhos:
+      - "fundamenta[cç][aã]o legal|art(igo)?\\.?\\s*\\d+.{0,20}13\\.?303|LA\\s?008"
+    orientacao: >-
+      Citar o dispositivo legal e o item da LA 008 que fundamenta a modalidade
+      escolhida.
+
+  - id: PB-06-002
+    secao: "6 - Seleção do Fornecedor"
+    titulo: "Matriz de Riscos"
+    descricao: "Apresentar a Matriz de Riscos da contratação."
+    aplicabilidade: [sempre]
+    severidade: critico
+    verificacao: presenca
+    gatilhos:
+      - "matriz de riscos?"
+    orientacao: "Anexar/inserir a matriz de riscos com risco, probabilidade, impacto, ação e responsável."
+
+  - id: PB-06-003
+    secao: "6 - Seleção do Fornecedor"
+    titulo: "Risco de variação cambial alocado ao fornecedor"
+    descricao: >-
+      Em contratação de hardware ou de serviços atrelados à moeda estrangeira,
+      alocar o Risco de Variação da Taxa de Câmbio ao fornecedor, com ação
+      "Estratégias financeiras de proteção cambial."
+    aplicabilidade: [hardware]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "varia[cç][aã]o (da taxa )?de c[aâ]mbio|prote[cç][aã]o cambial|cambial"
+    orientacao: >-
+      Incluir na matriz de riscos a variação cambial alocada ao fornecedor, com
+      a ação de proteção cambial.
+
+  - id: PB-06-004
+    secao: "6 - Seleção do Fornecedor"
+    titulo: "Declaração sobre a Due Diligence de Integridade de Terceiros (DDI)"
+    descricao: >-
+      Declarar a situação da DDI: já válida; em andamento; ou a ser realizada
+      após a seleção do fornecedor via certame.
+    aplicabilidade: [sempre]
+    severidade: critico
+    verificacao: presenca
+    gatilhos:
+      - "\\bDDI\\b|due diligence"
+    orientacao: >-
+      Inserir a declaração da DDI com a hipótese aplicável
+      (https://lowcode.serpro.gov.br/Integridade_Local/).
+
+  - id: PB-06-005
+    secao: "6 - Seleção do Fornecedor"
+    titulo: "CNPJ e Razão Social da contratada em contratação direta"
+    descricao: "Em contratação direta, informar CNPJ e Razão Social da contratada."
+    aplicabilidade: [contratacao_direta, inexigibilidade]
+    severidade: critico
+    verificacao: presenca
+    gatilhos:
+      - "\\d{2}\\.\\d{3}\\.\\d{3}/\\d{4}-\\d{2}"
+    orientacao: "Informar CNPJ (formatado) e razão social da futura contratada."
+
+  - id: PB-06-006
+    secao: "6 - Seleção do Fornecedor"
+    titulo: "Justificativa da escolha do fornecedor"
+    descricao: "Em contratação direta, justificar a escolha do fornecedor."
+    aplicabilidade: [contratacao_direta, inexigibilidade]
+    severidade: critico
+    verificacao: presenca
+    gatilhos:
+      - "escolha do fornecedor|justificativa .{0,25}fornecedor"
+    orientacao: "Justificar objetivamente a escolha do fornecedor."
+
+  - id: PB-06-007
+    secao: "6 - Seleção do Fornecedor"
+    titulo: "Comprovação da inviabilidade de competição (inexigibilidade)"
+    descricao: >-
+      Indicar documento que comprove a inviabilidade de competição (ex.: Carta
+      ABES) anexo ao PB, com numeração, descrição e vigência compatíveis com o
+      texto do PB.
+    aplicabilidade: [inexigibilidade]
+    severidade: critico
+    verificacao: coerencia
+    gatilhos:
+      - "inviabilidade de competi[cç][aã]o|carta ABES|exclusividade"
+    orientacao: >-
+      Anexar o documento comprobatório e conferir se numeração, descrição e
+      vigência conferem com o citado no corpo do PB.
+
+  - id: PB-06-008
+    secao: "6 - Seleção do Fornecedor"
+    titulo: "Critério de julgamento das propostas"
+    descricao: "Definir o critério de julgamento: menor preço unitário ou menor preço global."
+    aplicabilidade: [licitacao]
+    severidade: critico
+    verificacao: presenca
+    gatilhos:
+      - "menor pre[cç]o (unit[aá]rio|global|por (item|grupo))|crit[eé]rio de julgamento"
+    orientacao: "Explicitar o critério de julgamento adotado."
+
+  - id: PB-06-009
+    secao: "6 - Seleção do Fornecedor"
+    titulo: "Critérios de habilitação"
+    descricao: >-
+      Definir os critérios de habilitação. Se o atestado de capacidade for o
+      padrão, incluir: "Apresentar Atestado de Capacidade Técnica de acordo com
+      Cláusula editalícia padrão do SERPRO." Caso contrário, especificar o
+      atestado exigido.
+    aplicabilidade: [licitacao]
+    severidade: critico
+    verificacao: presenca
+    gatilhos:
+      - "habilita[cç][aã]o"
+    orientacao: >-
+      Detalhar os critérios de habilitação e a redação do atestado de
+      capacidade técnica (padrão ou específica justificada).
+
+  - id: PB-06-010
+    secao: "6 - Seleção do Fornecedor"
+    titulo: "Certificações de qualidade não podem ser critério de habilitação"
+    descricao: >-
+      Certificações de qualidade podem ser exigidas apenas como critério antes
+      da assinatura do contrato, e não como critério de habilitação.
+    aplicabilidade: [licitacao]
+    severidade: critico
+    verificacao: coerencia
+    inverter: true
+    gatilhos:
+      - "certifica[cç][aã]o|\\bISO\\b|\\bCMMI\\b|\\bMPS\\.?BR\\b"
+    orientacao: >-
+      Reposicionar a exigência de certificação para condição prévia à
+      assinatura do contrato.
+
+  - id: PB-06-011
+    secao: "6 - Seleção do Fornecedor"
+    titulo: "Exigência de amostra conforme cláusula padrão"
+    descricao: "Quando houver exigência de amostra, seguir a cláusula padrão."
+    aplicabilidade: [amostra]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "amostra"
+    orientacao: "Adotar a redação da Cláusula de Amostra das Cláusulas Padrão."
+
+  - id: PB-06-012
+    secao: "6 - Seleção do Fornecedor"
+    titulo: "Solicitação de cláusula de garantia de execução contratual"
+    descricao: >-
+      Caso haja previsão de garantia de execução contratual, deve haver
+      solicitação de inclusão de cláusula padrão ou específica.
+    aplicabilidade: [garantia_execucao]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "garantia de execu[cç][aã]o"
+    orientacao: "Solicitar expressamente a inclusão da cláusula de garantia de execução."
+
+# --- 7. Justificativa para aceitação de preços ----------------------------
+  - id: PB-07-001
+    secao: "7 - Justificativa para Aceitação de Preços"
+    titulo: "Pesquisa de preços conforme LA 002"
+    descricao: "A pesquisa de preços deve observar a Norma LA 002."
+    aplicabilidade: [sempre]
+    severidade: critico
+    verificacao: presenca
+    gatilhos:
+      - "pesquisa de pre[cç]os?"
+    orientacao: >-
+      Descrever a metodologia da pesquisa de preços e as fontes utilizadas,
+      conforme a LA 002.
+
+  - id: PB-07-002
+    secao: "7 - Justificativa para Aceitação de Preços"
+    titulo: "Consulta ao Catálogo de TIC do MGI (item 4.7.2.2 da LA 002)"
+    descricao: >-
+      Consultar preços no Catálogo de TIC do MGI, conforme item 4.7.2.2 da
+      Norma LA 002.
+    aplicabilidade: [sempre]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "cat[aá]logo de TIC|\\bMGI\\b"
+    orientacao: >-
+      Registrar a consulta ao Catálogo de TIC do MGI (ou justificar a
+      inexistência do item no catálogo).
+
+  - id: PB-07-003
+    secao: "7 - Justificativa para Aceitação de Preços"
+    titulo: "Preços com entes públicos ou justificativa e comprovações"
+    descricao: >-
+      Caso a pesquisa não contenha preços com entes públicos, solicitar
+      justificativa e comprovações (prints de pesquisa no Banco de Preços ou
+      Comprasnet).
+    aplicabilidade: [sempre]
+    severidade: critico
+    verificacao: coerencia
+    gatilhos:
+      - "ente(s)? p[uú]blico|banco de pre[cç]os|comprasnet|\\bPNCP\\b|painel de pre[cç]os"
+    orientacao: >-
+      Incluir preços praticados com entes públicos ou justificar a ausência,
+      anexando as comprovações da pesquisa.
+
+  - id: PB-07-004
+    secao: "7 - Justificativa para Aceitação de Preços"
+    titulo: "Declaração de vantajosidade em compra direta"
+    descricao: >-
+      Em compra direta, declarar que o preço proposto pela empresa ao Serpro é
+      vantajoso economicamente.
+    aplicabilidade: [contratacao_direta, inexigibilidade]
+    severidade: critico
+    verificacao: presenca
+    gatilhos:
+      - "vantajos"
+    orientacao: "Inserir a declaração de vantajosidade econômica do preço proposto."
+
+  - id: PB-07-005
+    secao: "7 - Justificativa para Aceitação de Preços"
+    titulo: "Consultoria: equivalência de qualificação em contratos similares (7.1.1)"
+    descricao: >-
+      Demonstrar a equivalência direta entre cargos, formação acadêmica,
+      experiência profissional e demais requisitos de qualificação exigidos.
+    aplicabilidade: [consultoria]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "equival[eê]ncia|forma[cç][aã]o acad[eê]mica|experi[eê]ncia profissional"
+    orientacao: "Demonstrar a equivalência de perfis entre a contratação e os paradigmas."
+
+  - id: PB-07-006
+    secao: "7 - Justificativa para Aceitação de Preços"
+    titulo: "Consultoria: equivalência de dimensionamento/escopo (7.2.2 e 7.2.3)"
+    descricao: >-
+      Demonstrar a equivalência do dimensionamento e/ou escopo dos serviços a
+      serem contratados frente aos avaliados na pesquisa, ou justificar a
+      comparação de valores realizada.
+    aplicabilidade: [consultoria]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "dimensionamento|escopo .{0,30}equivalen|compara[cç][aã]o de valores"
+    orientacao: >-
+      Demonstrar a equivalência de escopo/dimensionamento ou justificar a
+      comparação adotada.
+
+# --- 8. Gestão contratual --------------------------------------------------
+  - id: PB-08-001
+    secao: "8 - Gestão Contratual"
+    titulo: "Vigência do contrato com prazo e termo inicial"
+    descricao: >-
+      "O prazo de vigência do contrato será de XX (xis) meses, a partir da data
+      de ___/___/_____."
+    aplicabilidade: [sempre]
+    severidade: critico
+    verificacao: presenca
+    gatilhos:
+      - "prazo de vig[eê]ncia|vig[eê]ncia do contrato"
+    orientacao: "Declarar o prazo de vigência em algarismos e por extenso e o termo inicial."
+
+  - id: PB-08-002
+    secao: "8 - Gestão Contratual"
+    titulo: "Vigência acima de 60 meses exige nota técnica"
+    descricao: >-
+      Caso a vigência total ultrapasse 60 meses, deve ser anexada nota técnica
+      com justificativa, conforme art. 87 do Regulamento (Seção VI - Da Duração
+      dos Contratos). Ver PARECER SUPJU 0477/2024.
+    aplicabilidade: [vigencia_acima_60]
+    severidade: critico
+    verificacao: anexo
+    gatilhos:
+      - "nota t[eé]cnica"
+    orientacao: >-
+      Anexar nota técnica justificando a duração superior a 60 meses (art. 87
+      do Regulamento; Parecer LAA/SUPJU 0477/2024).
+
+  - id: PB-08-003
+    secao: "8 - Gestão Contratual"
+    titulo: "Prorrogação restrita a serviços contínuos, com itens identificados"
+    descricao: >-
+      Apenas serviços contínuos podem ser renovados/prorrogados. Se apenas
+      alguns itens do PB puderem ser renovados, deixar claro quais.
+    aplicabilidade: [servico]
+    severidade: critico
+    verificacao: coerencia
+    gatilhos:
+      - "prorrogad|prorroga[cç][aã]o|renova[cç][aã]o"
+    orientacao: >-
+      Identificar expressamente quais itens são passíveis de prorrogação e
+      confirmar sua natureza contínua.
+
+  - id: PB-08-004
+    secao: "8 - Gestão Contratual"
+    titulo: "Vigência das subscrições distinta da vigência do contrato"
+    descricao: >-
+      "A vigência das subscrições será de XX (xis) meses a partir do
+      recebimento definitivo e não se confunde com a vigência do contrato."
+    aplicabilidade: [subscricao]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "vig[eê]ncia das subscri[cç][oõ]es|n[aã]o se confunde com a vig[eê]ncia"
+    orientacao: "Incluir cláusula distinguindo a vigência das subscrições da do contrato."
+
+  - id: PB-08-005
+    secao: "8 - Gestão Contratual"
+    titulo: "Prorrogação por apostilamento para garantia técnica"
+    descricao: >-
+      Em aquisição com garantia técnica, prever prorrogação pelo período
+      necessário para contemplar o prazo da garantia, mediante apostilamento.
+    aplicabilidade: [garantia_tecnica]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "apostilamento"
+    orientacao: "Incluir a cláusula de prorrogação por apostilamento para a garantia técnica."
+
+  - id: PB-08-006
+    secao: "8 - Gestão Contratual"
+    titulo: "Prorrogação por apostilamento para execução de serviço vinculado"
+    descricao: >-
+      Em aquisição com prestação de serviço, prever prorrogação pelo período
+      necessário para contemplar o prazo de execução do serviço, mediante
+      apostilamento.
+    aplicabilidade: [bem, servico]
+    severidade: medio
+    verificacao: presenca
+    gatilhos:
+      - "apostilamento"
+    orientacao: "Incluir a cláusula de prorrogação por apostilamento para o serviço vinculado."
+
+  - id: PB-08-007
+    secao: "8 - Gestão Contratual"
+    titulo: "Vigência da Ata de Registro de Preços"
+    descricao: "Se for o caso, informar a vigência da Ata de Registro de Preços."
+    aplicabilidade: [arp]
+    severidade: alto
+    verificacao: presenca
+    gatilhos:
+      - "ata de registro de pre[cç]os|\\bARP\\b"
+    orientacao: "Informar a vigência da ARP."
+
+  - id: PB-08-008
+    secao: "8 - Gestão Contratual"
+    titulo: "Obrigações do Serpro e da Contratada"
+    descricao: "Se for o caso, descrever as obrigações do Serpro e da Contratada."
+    aplicabilidade: [sempre]
+    severidade: medio
+    verificacao: presenca
+    gatilhos:
+      - "obriga[cç][oõ]es d(a|o) contratad|obriga[cç][oõ]es do serpro"
+    orientacao: "Incluir o rol de obrigações das partes."
+
+  - id: PB-08-009
+    secao: "8 - Gestão Contratual"
+    titulo: "Repasse de conhecimento"
+    descricao: >-
+      Se for o caso, prever repasse de conhecimento; os itens de repasse devem
+      ser apreciados pela equipe SUPET/ETECD/ETCSE.
+    aplicabilidade: [servico, consultoria]
+    severidade: medio
+    verificacao: presenca
+    gatilhos:
+      - "repasse de conhecimento|transfer[eê]ncia de conhecimento"
+    orientacao: >-
+      Descrever o repasse de conhecimento e submeter os itens à apreciação da
+      SUPET/ETECD/ETCSE.
+
+# --- 9. Anexos -------------------------------------------------------------
+  - id: PB-09-001
+    secao: "9 - Anexos"
+    titulo: "Documentos citados no PB/TR constam dos anexos"
+    descricao: "Todos os documentos citados no PB/TR devem estar anexados."
+    aplicabilidade: [sempre]
+    severidade: alto
+    verificacao: anexo
+    gatilhos:
+      - "anexo"
+    orientacao: >-
+      Conferir se todo documento referenciado no corpo do PB consta da relação
+      de anexos.
+
+  - id: PB-09-002
+    secao: "9 - Anexos"
+    titulo: "DOD anexado"
+    descricao: "Anexar o Documento de Oficialização da Demanda."
+    aplicabilidade: [sempre]
+    severidade: critico
+    verificacao: anexo
+    gatilhos:
+      - "\\bDOD\\b"
+    orientacao: "Anexar o(s) DOD(s) vinculado(s)."
+
+  - id: PB-09-003
+    secao: "9 - Anexos"
+    titulo: "ETP com status Finalizado anexado"
+    descricao: "Anexar o ETP com status Finalizado."
+    aplicabilidade: [sempre]
+    severidade: critico
+    verificacao: anexo
+    gatilhos:
+      - "\\bETP\\b"
+    orientacao: "Anexar o ETP e confirmar que seu status é Finalizado."
+
+  - id: PB-09-004
+    secao: "9 - Anexos"
+    titulo: "Propostas comerciais e comprovações da pesquisa de preços"
+    descricao: "Anexar propostas comerciais, preços utilizados e comprovações de pesquisa."
+    aplicabilidade: [sempre]
+    severidade: critico
+    verificacao: anexo
+    gatilhos:
+      - "proposta comercial|propostas comerciais"
+    orientacao: "Anexar as propostas e as comprovações da pesquisa de preços."
+
+  - id: PB-09-005
+    secao: "9 - Anexos"
+    titulo: "Documento de inviabilidade de competição anexado (inexigibilidade)"
+    descricao: >-
+      Nas contratações por inexigibilidade, anexar o documento que comprove a
+      inviabilidade de competição.
+    aplicabilidade: [inexigibilidade]
+    severidade: critico
+    verificacao: anexo
+    gatilhos:
+      - "inviabilidade de competi[cç][aã]o|carta ABES"
+    orientacao: "Anexar o documento comprobatório da inviabilidade de competição."
