@@ -1,0 +1,53 @@
+# Configuração do Fly.io para o servidor MCP de conformidade de PB/TR.
+# Ajuste `app` e `primary_region` antes do primeiro deploy.
+# Ver docs/DEPLOY.md — em especial a seção sobre exposição do endpoint.
+
+app = "conformidade-pbtr"
+primary_region = "gru"          # São Paulo
+
+[build]
+  dockerfile = "Dockerfile"
+
+  [build.args]
+    # 0 deixa a imagem ~4x menor, sem a checagem gramatical do LanguageTool
+    COM_LANGUAGETOOL = "1"
+
+[env]
+  MCP_TRANSPORT = "http"
+  PORT = "8080"
+  # Modo remoto: recusa caminhos locais e devolve os relatórios em base64,
+  # já que o cliente não compartilha sistema de arquivos com o servidor.
+  CONFORMIDADE_PBTR_MODO = "remoto"
+  CONFORMIDADE_PBTR_SAIDA = "/tmp/relatorios"
+  CONFORMIDADE_PBTR_MAX_UPLOAD_MB = "25"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # A JVM do LanguageTool leva alguns segundos para subir; manter uma máquina
+  # de pé evita que a primeira análise após ociosidade pague esse custo.
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "requests"
+    # Uma análise com LanguageTool consome CPU e memória de forma concentrada;
+    # concorrência alta em máquina pequena degrada todas as requisições.
+    soft_limit = 4
+    hard_limit = 8
+
+[[vm]]
+  size = "shared-cpu-2x"
+  # A JVM do LanguageTool sozinha pede ~1 GB. Com 512 MB o processo é morto
+  # por OOM na primeira análise.
+  memory = "2gb"
+
+[checks]
+  [checks.health]
+    type = "http"
+    port = 8080
+    path = "/health"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "60s"

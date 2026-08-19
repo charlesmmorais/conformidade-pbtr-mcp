@@ -15,6 +15,8 @@ Prompt exposto:
 
 from __future__ import annotations
 
+import base64
+import binascii
 import os
 import tempfile
 from pathlib import Path
@@ -40,14 +42,22 @@ mcp = FastMCP(
         "Analisa Projetos Básicos (PB) e Termos de Referência (TR) contra o "
         "roteiro [TI] de análise. Quando o usuário pedir para 'conduzir análise "
         "de conformidade' de um PB ou TR e enviar um PDF, chame "
-        "analisar_conformidade com o caminho do arquivo e os formatos de saída "
-        "desejados. O retorno traz o sumário, as pendências priorizadas e os "
-        "caminhos dos relatórios gerados."
+        "analisar_conformidade. Em execução local, passe `caminho_arquivo`; em "
+        "execução remota (servidor hospedado), envie o PDF em `conteudo_base64` "
+        "com `nome_arquivo` e peça os relatórios em `retornar_conteudo`. O "
+        "retorno traz o sumário e as pendências priorizadas."
     ),
 )
 
 DIR_SAIDA = Path(os.environ.get("CONFORMIDADE_PBTR_SAIDA", tempfile.gettempdir()))
 DIR_SAIDA.mkdir(parents=True, exist_ok=True)
+
+# Em modo remoto o cliente não compartilha sistema de arquivos com o servidor:
+# caminhos locais são recusados e os relatórios voltam embutidos na resposta.
+MODO_REMOTO = os.environ.get("CONFORMIDADE_PBTR_MODO", "").lower() == "remoto"
+
+# limite do upload em base64, para não estourar a memória da instância
+MAX_UPLOAD_MB = float(os.environ.get("CONFORMIDADE_PBTR_MAX_UPLOAD_MB", "25"))
 
 # cache das análises da sessão: chave -> Relatorio
 _CACHE: dict[str, Relatorio] = {}
@@ -55,6 +65,64 @@ _CACHE: dict[str, Relatorio] = {}
 
 def _chave(caminho: str) -> str:
     return Path(caminho).stem[:60]
+
+
+def _materializar(
+    caminho_arquivo: str | None,
+    conteudo_base64: str | None,
+    nome_arquivo: str | None,
+) -> tuple[Path | None, str | None, tempfile.TemporaryDirectory | None]:
+    """Devolve (caminho, erro, diretório temporário a manter vivo).
+
+    Aceita um caminho local (execução local) ou o conteúdo do documento em
+    base64 (execução remota).
+    """
+    if conteudo_base64:
+        nome = nome_arquivo or "documento.pdf"
+        if Path(nome).suffix.lower() not in (".pdf", ".docx"):
+            return None, "nome_arquivo deve terminar em .pdf ou .docx", None
+        try:
+            dados = base64.b64decode(conteudo_base64, validate=True)
+        except (binascii.Error, ValueError) as exc:
+            return None, f"conteudo_base64 inválido: {exc}", None
+        if len(dados) > MAX_UPLOAD_MB * 1024 * 1024:
+            return None, (
+                f"documento com {len(dados) / 1048576:.1f} MB excede o limite de "
+                f"{MAX_UPLOAD_MB:.0f} MB"
+            ), None
+        tmp = tempfile.TemporaryDirectory(prefix="conformidade-pbtr-")
+        destino = Path(tmp.name) / Path(nome).name
+        destino.write_bytes(dados)
+        return destino, None, tmp
+
+    if not caminho_arquivo:
+        return None, "informe caminho_arquivo (local) ou conteudo_base64 (remoto)", None
+
+    if MODO_REMOTO:
+        return None, (
+            "servidor em modo remoto: o sistema de arquivos não é compartilhado "
+            "com o cliente. Envie o documento em conteudo_base64."
+        ), None
+
+    caminho = Path(caminho_arquivo).expanduser()
+    if not caminho.exists():
+        return None, f"Arquivo não encontrado: {caminho}", None
+    return caminho, None, None
+
+
+def _embutir(arquivos: dict[str, str]) -> dict[str, dict[str, str]]:
+    """Lê os relatórios gerados e devolve o conteúdo em base64."""
+    embutidos: dict[str, dict[str, str]] = {}
+    for fmt, caminho in arquivos.items():
+        p = Path(caminho)
+        if not p.exists():
+            continue
+        embutidos[fmt] = {
+            "nome": p.name,
+            "bytes": str(p.stat().st_size),
+            "base64": base64.b64encode(p.read_bytes()).decode("ascii"),
+        }
+    return embutidos
 
 
 def _sumario(rel: Relatorio, limite_pendencias: int = 40) -> dict[str, Any]:
@@ -91,7 +159,18 @@ def _sumario(rel: Relatorio, limite_pendencias: int = 40) -> dict[str, Any]:
 
 @mcp.tool
 def analisar_conformidade(
-    caminho_arquivo: Annotated[str, Field(description="Caminho absoluto do PDF ou DOCX do PB/TR.")],
+    caminho_arquivo: Annotated[
+        str | None,
+        Field(description="Caminho do PDF/DOCX no servidor. Só funciona em execução local."),
+    ] = None,
+    conteudo_base64: Annotated[
+        str | None,
+        Field(description="Conteúdo do PDF/DOCX em base64. Use em servidor remoto."),
+    ] = None,
+    nome_arquivo: Annotated[
+        str | None,
+        Field(description="Nome do arquivo (com .pdf ou .docx) quando usar conteudo_base64."),
+    ] = None,
     tipo: Annotated[Literal["PB", "TR"], Field(description="Tipo do documento.")] = "PB",
     formatos: Annotated[
         list[Literal["json", "md", "docx", "xlsx", "pdf"]] | None,
@@ -107,6 +186,10 @@ def analisar_conformidade(
         str | None,
         Field(description="Checklist alternativo (caminho do YAML ou nome de um arquivo em recursos/)."),
     ] = None,
+    retornar_conteudo: Annotated[
+        bool,
+        Field(description="Devolver os relatórios em base64 na resposta (necessário em servidor remoto)."),
+    ] = False,
     diretorio_saida: Annotated[str | None, Field(description="Onde gravar os relatórios.")] = None,
 ) -> dict[str, Any]:
     """Conduz a análise de conformidade completa de um PB/TR e gera os relatórios.
@@ -115,9 +198,9 @@ def analisar_conformidade(
     dos itens; (3) a aritmética das tabelas de preços e os valores declarados
     (inclusive valor por extenso); (4) ortografia e gramática em pt-BR.
     """
-    caminho = Path(caminho_arquivo).expanduser()
-    if not caminho.exists():
-        return {"erro": f"Arquivo não encontrado: {caminho}"}
+    caminho, erro, _tmp = _materializar(caminho_arquivo, conteudo_base64, nome_arquivo)
+    if erro:
+        return {"erro": erro}
 
     try:
         rel = analisador.analisar(
@@ -146,8 +229,11 @@ def analisar_conformidade(
             erros[fmt] = f"{type(exc).__name__}: {exc}"
 
     resultado = _sumario(rel)
-    resultado["relatorios"] = gerados
     resultado["chave_analise"] = _chave(str(caminho))
+    if retornar_conteudo or MODO_REMOTO:
+        resultado["relatorios"] = _embutir(gerados)
+    else:
+        resultado["relatorios"] = gerados
     if erros:
         resultado["erros_geracao"] = erros
     return resultado
@@ -295,6 +381,9 @@ def consultar_checklist(
 def gerar_relatorio(
     chave_analise: Annotated[str, Field(description="Chave devolvida por analisar_conformidade.")],
     formato: Annotated[Literal["json", "md", "docx", "xlsx", "pdf"], Field(description="Formato de saída.")],
+    retornar_conteudo: Annotated[
+        bool, Field(description="Devolver o arquivo em base64 (necessário em servidor remoto).")
+    ] = False,
     diretorio_saida: Annotated[str | None, Field(description="Onde gravar o arquivo.")] = None,
 ) -> dict[str, Any]:
     """Renderiza em outro formato uma análise já executada nesta sessão, sem
@@ -309,7 +398,39 @@ def gerar_relatorio(
     saida.mkdir(parents=True, exist_ok=True)
     ext = "md" if formato in ("md", "markdown") else formato
     base = f"Relatorio_Conformidade_{chave_analise}".replace(" ", "_")
-    return {"arquivo": FORMATOS[formato](rel, saida / f"{base}.{ext}")}
+    arquivo = FORMATOS[formato](rel, saida / f"{base}.{ext}")
+    if retornar_conteudo or MODO_REMOTO:
+        return {"relatorio": _embutir({formato: arquivo})[formato]}
+    return {"arquivo": arquivo}
+
+
+# ------------------------------------------------------------ health
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health(request):  # noqa: ARG001 - assinatura exigida pelo Starlette
+    """Verificação de saúde para o balanceador (Fly.io, Kubernetes, etc.).
+
+    Confirma que o checklist carrega — um erro de recurso ausente precisa
+    derrubar o health check, e não aparecer só na primeira análise.
+    """
+    from starlette.responses import JSONResponse
+
+    try:
+        dados = mod_checklist.carregar()
+        regras = len(dados.get("regras", []))
+    except Exception as exc:
+        return JSONResponse(
+            {"status": "erro", "detalhe": f"{type(exc).__name__}: {exc}"},
+            status_code=503,
+        )
+    return JSONResponse(
+        {
+            "status": "ok",
+            "checklist": (dados.get("metadata") or {}).get("arquivo"),
+            "regras": regras,
+            "modo": "remoto" if MODO_REMOTO else "local",
+        }
+    )
 
 
 # -------------------------------------------------------------- prompt
@@ -348,7 +469,21 @@ tal; quando a evidência textual for fraca, trate como "verificar manualmente".
 
 
 def main() -> None:
-    mcp.run()
+    """Sobe o servidor.
+
+    O transporte vem de ``MCP_TRANSPORT``: ``stdio`` (padrão, uso local com o
+    Claude Desktop) ou ``http`` (uso hospedado, por exemplo no Fly.io). Em
+    ``http``, ``PORT`` e ``HOST`` seguem a convenção das plataformas de deploy.
+    """
+    transporte = os.environ.get("MCP_TRANSPORT", "stdio").lower()
+    if transporte in ("http", "streamable-http", "sse"):
+        mcp.run(
+            transport="sse" if transporte == "sse" else "http",
+            host=os.environ.get("HOST", "0.0.0.0"),
+            port=int(os.environ.get("PORT", "8080")),
+        )
+    else:
+        mcp.run()
 
 
 if __name__ == "__main__":

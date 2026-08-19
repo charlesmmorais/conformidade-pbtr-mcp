@@ -71,6 +71,23 @@ Registro no Claude Desktop / Claude Code (`claude_desktop_config.json`):
 }
 ```
 
+## Deploy hospedado (Fly.io)
+
+O servidor fala **stdio** localmente e **HTTP** quando hospedado. O repositório
+traz `Dockerfile` e `fly.toml` prontos:
+
+```bash
+fly launch --no-deploy --copy-config
+fly deploy
+curl https://<sua-app>.fly.dev/health
+```
+
+No modo hospedado o cliente não compartilha disco com o servidor: o PDF sobe em
+`conteudo_base64` e os relatórios voltam embutidos na resposta. Leia
+[`docs/DEPLOY.md`](docs/DEPLOY.md) antes do primeiro deploy — em especial a
+seção sobre exposição do endpoint e o dimensionamento de memória, já que a JVM
+do LanguageTool sozinha pede ~1 GB.
+
 ## Tools expostas
 
 | Tool | Uso |
@@ -139,6 +156,7 @@ alteração de código. O formato está em [`docs/CHECKLIST.md`](docs/CHECKLIST.
 
 - [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md) — decisões de projeto, modelo de dados e roadmap
 - [`docs/CHECKLIST.md`](docs/CHECKLIST.md) — formato do YAML e como escrever bons gatilhos
+- [`docs/DEPLOY.md`](docs/DEPLOY.md) — deploy no Fly.io, modo remoto e variáveis de ambiente
 - [`CONTRIBUTING.md`](CONTRIBUTING.md) — como contribuir
 
 ## Desenvolvimento
