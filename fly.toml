@@ -1,46 +1,42 @@
-# Configuração do Fly.io para o servidor MCP de conformidade de PB/TR.
-# Ajuste `app` e `primary_region` antes do primeiro deploy.
-# Ver docs/DEPLOY.md — em especial a seção sobre exposição do endpoint.
+# fly.toml app configuration file generated for conformidade-pbtr on 2026-08-19T23:56:29Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-app = "conformidade-pbtr"
-primary_region = "gru"          # São Paulo
+app = 'conformidade-pbtr'
+primary_region = 'gru'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
 [env]
-  MCP_TRANSPORT = "http"
-  PORT = "8080"
-  # Modo remoto: recusa caminhos locais e devolve os relatórios em base64,
-  # já que o cliente não compartilha sistema de arquivos com o servidor.
-  CONFORMIDADE_PBTR_MODO = "remoto"
-  CONFORMIDADE_PBTR_SAIDA = "/tmp/relatorios"
-  CONFORMIDADE_PBTR_MAX_UPLOAD_MB = "25"
+  CONFORMIDADE_PBTR_MAX_UPLOAD_MB = '25'
+  CONFORMIDADE_PBTR_MODO = 'remoto'
+  CONFORMIDADE_PBTR_SAIDA = '/tmp/relatorios'
+  MCP_TRANSPORT = 'http'
+  PORT = '8080'
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = "suspend"
+  auto_stop_machines = 'suspend'
   auto_start_machines = true
   min_machines_running = 0
 
   [http_service.concurrency]
-    type = "requests"
-    # A extração de PDF é o gargalo: concentra CPU por alguns segundos.
-    soft_limit = 8
+    type = 'requests'
     hard_limit = 16
-
-[[vm]]
-  size = "shared-cpu-1x"
-  # Sem JVM, o consumo é o do Python mais o PDF em memória. 512 MB atende;
-  # suba para 1 GB se for analisar PBs muito grandes em paralelo.
-  memory = "512mb"
+    soft_limit = 8
 
 [checks]
   [checks.health]
-    type = "http"
     port = 8080
-    path = "/health"
-    interval = "30s"
-    timeout = "5s"
-    grace_period = "60s"
+    type = 'http'
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '1m0s'
+    path = '/health'
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '512mb'
