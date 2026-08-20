@@ -39,17 +39,93 @@ Reinicie o Claude Desktop. Os relatórios vão cair na pasta indicada em
 > sistema; para quem tem o PDF na máquina, o local é mais rápido e sem limite
 > de tamanho.
 
-## 2. Usar
+## 2. O que digitar no chat
+
+### 2.1. O pedido — versão curta
 
 Anexe o PDF e diga:
 
-> **conduzir análise de conformidade do PB**
+```
+Conduzir análise de conformidade do PB em anexo.
+```
 
-Só isso. A IA encadeia os três passos sozinha — verificações determinísticas,
-leitura do texto, geração dos relatórios — e entrega DOCX, XLSX e PDF.
+Funciona, mas deixa a ferramenta adivinhar o tipo de contratação — e é aí que
+ela mais erra.
 
-Se o documento for TR, diga "do TR". Se a inferência de contexto errar (veja
-abaixo), corrija em linguagem natural: *"é licitação, não contratação direta"*.
+### 2.2. O pedido — versão recomendada
+
+Declarar o contexto custa 20 segundos e elimina a maior fonte de ruído do
+relatório. Copie, preencha e cole:
+
+```
+Conduzir análise de conformidade do PB em anexo.
+
+Contexto da contratação, para você não depender da inferência:
+- Modalidade: pregão eletrônico / dispensa / inexigibilidade
+- Natureza: serviço / bem / obra / consultoria / treinamento
+- Particularidades: ordem de serviço, grupos ou lotes, registro de preços,
+  subscrição, garantia de execução, abertura de chamados, preço em moeda
+  estrangeira — mantenha só o que se aplica e apague o resto
+- Vigência prevista: XX meses
+
+Ao final, confirme quais tags de contexto você usou e gere os relatórios em
+DOCX e XLSX.
+```
+
+Apagar o que não se aplica é a parte que importa: cada particularidade que
+sobra aciona um ramo do roteiro que vai cobrar cláusulas que o seu documento
+não precisa ter.
+
+### 2.3. Corrigir o contexto depois
+
+Se você usou a versão curta e as tags saíram erradas:
+
+```
+As tags de contexto estão erradas. É licitação, não contratação direta, e não
+há consultoria nem treinamento — essas menções são descrição de perfil
+profissional. Refaça a análise com o contexto correto.
+```
+
+### 2.4. Aprofundar um achado
+
+O relatório é sintético de propósito. Para instruir o processo:
+
+```
+Detalhe o achado PB-06-008: transcreva o trecho exato do documento, diga em
+que item ele está e explique o que falta para atender o roteiro.
+```
+
+### 2.5. A conferência que sempre vale pedir
+
+```
+Confira se o valor total do cabeçalho (Aba Itens) bate com o valor declarado
+no corpo do documento, e se as tabelas de preços fecham linha a linha —
+quantidade x unitário = total, e a soma dos itens contra o valor global.
+```
+
+Nos dois PBs analisados até hoje, esse par de valores divergiu nos dois.
+
+### 2.6. Fechar o parecer
+
+```
+Escreva um resumo das pendências críticas em texto corrido, no formato que eu
+possa aproveitar no parecer de conformidade, citando o número do item do PB em
+cada apontamento. Separe o que é constatação objetiva do que é sugestão de
+revisão.
+```
+
+### 2.7. Verificações avulsas
+
+Quando não quiser a análise inteira:
+
+```
+Confira só a numeração deste PB.
+As tabelas de preços deste PB fecham?
+Revise o português deste PB.
+Este PDF é legível ou precisa de OCR?
+O que o roteiro exige na seção 4?
+Gera o relatório de novo em PDF.
+```
 
 ## 3. Ler o relatório
 
@@ -109,19 +185,6 @@ Abra uma issue com o `id` da regra, o trecho anonimizado que deveria ter casado
 e a redação que você propõe. Ou edite direto o
 `recursos/checklist_roteiro_ti.yaml` e suba a versão — o formato está em
 [`CHECKLIST.md`](CHECKLIST.md).
-
-## 6. Verificações avulsas
-
-Quando quiser só uma parte, peça em linguagem natural:
-
-| Pedido | Tool |
-|---|---|
-| "confira só a numeração deste PB" | `verificar_numeracao` |
-| "as tabelas fecham?" | `validar_tabelas` |
-| "revise o português" | `revisar_ortografia` |
-| "esse PDF é legível?" | `extrair_estrutura` |
-| "o que o roteiro exige na seção 4?" | `consultar_checklist` |
-| "gera de novo em PDF" | `gerar_relatorio` |
 
 ## Limites conhecidos
 
