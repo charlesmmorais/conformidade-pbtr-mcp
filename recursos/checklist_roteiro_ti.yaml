@@ -18,7 +18,7 @@
 # ---------------------------------------------------------------------------
 
 metadata:
-  versao: "1.0.0"
+  versao: "1.1.0"
   data_base: "2026-08-19"
   fonte: "[TI] Roteiro - Projetos Básicos e Termos de Referência (1).docx"
   responsavel: "DIRAF/SUPGA/GACON/GACOA - Divisão de Conformidade Administrativa"
@@ -484,7 +484,7 @@ regras:
     severidade: alto
     verificacao: presenca
     gatilhos:
-      - "forma de pagamento|prazo de pagamento|nota fiscal"
+      - "formas? (e condi[cç][oõ]es )?de pagamento|prazo de pagamento|condi[cç][oõ]es de pagamento|nota fiscal"
     orientacao: "Inserir as cláusulas padrão de pagamento."
 
   - id: PB-04-005
@@ -570,7 +570,7 @@ regras:
     severidade: alto
     verificacao: presenca
     gatilhos:
-      - "consequ[eê]ncias? da n[aã]o contrata[cç][aã]o|caso a contrata[cç][aã]o n[aã]o (se )?(ocorra|efetive)"
+      - "(consequ[eê]ncias?|impactos?|riscos?) da n[aã]o contrata[cç][aã]o|n[aã]o (efetiva[cç][aã]o|realiza[cç][aã]o) da contrata[cç][aã]o|caso a contrata[cç][aã]o n[aã]o (se )?(ocorra|efetive)"
     orientacao: "Acrescentar parágrafo sobre os impactos da não contratação."
 
   - id: PB-05-004
@@ -775,7 +775,7 @@ regras:
     severidade: alto
     verificacao: presenca
     gatilhos:
-      - "bens? (e|ou) servi[cç]os? comuns|s[aã]o comuns"
+      - "(bens?|servi[cç]os?)[^.]{0,40}\\bcomuns\\b|s[aã]o comuns"
     orientacao: "Inserir a declaração de que o objeto é bem/serviço comum."
 
   - id: PB-05-107
@@ -960,7 +960,7 @@ regras:
     severidade: critico
     verificacao: presenca
     gatilhos:
-      - "menor pre[cç]o (unit[aá]rio|global|por (item|grupo))|crit[eé]rio de julgamento"
+      - "menor (pre[cç]o|valor) (unit[aá]rio|global|por (item|grupo))|crit[eé]rio de julgamento|ser[aá] considerada vencedora"
     orientacao: "Explicitar o critério de julgamento adotado."
 
   - id: PB-06-009
@@ -1044,7 +1044,7 @@ regras:
     severidade: alto
     verificacao: presenca
     gatilhos:
-      - "cat[aá]logo de TIC|\\bMGI\\b"
+      - "cat[aá]logo de (solu[cç][oõ]es de )?TIC|\\bMGI\\b|\\bSGD\\b"
     orientacao: >-
       Registrar a consulta ao Catálogo de TIC do MGI (ou justificar a
       inexistência do item no catálogo).
