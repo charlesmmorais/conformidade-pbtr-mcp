@@ -25,6 +25,7 @@ from __future__ import annotations
 import functools
 import re
 import unicodedata
+from bisect import bisect_right
 from dataclasses import dataclass
 
 from ..caminhos import caminho_dicionario
@@ -171,15 +172,56 @@ def carregar_dicionario() -> set[str]:
     return termos
 
 
-def _pagina_do_offset(doc: Documento, offset: int) -> int | None:
+def _indice_do_offset(doc: Documento, offset: int) -> int | None:
+    """Índice do bloco que contém um offset do texto integral."""
     if not doc.blocos:
         return None
     acumulado = 0
-    for bloco in doc.blocos:
+    for i, bloco in enumerate(doc.blocos):
         acumulado += len(bloco.texto) + 1
         if acumulado >= offset:
-            return bloco.pagina
-    return doc.blocos[-1].pagina
+            return i
+    return len(doc.blocos) - 1
+
+
+# Numeração de item ("5.", "6.3.1.") — exige o ponto e o espaço seguintes, o
+# que descarta valores monetários ("75.623,60") e referências legais
+# ("Lei 13.303/2016").
+RE_ITEM = re.compile(r"(?:^|[\s(])(\d{1,2}(?:\.\d{1,3}){0,4})\.(?=\s)")
+
+
+def item_antes_de(texto: str, posicao: int) -> str:
+    """Último item numerado que aparece antes de uma posição do texto.
+
+    Resolver no nível do caractere, e não do bloco, importa: num PDF denso o
+    extrator junta vários itens na mesma linha, e o item do bloco seria o
+    primeiro deles, não aquele em que o trecho de fato está.
+    """
+    ultimo = ""
+    for m in RE_ITEM.finditer(texto, 0, max(posicao, 0) + 1):
+        ultimo = m.group(1)
+    return ultimo
+
+
+def item_do_bloco(doc: Documento, indice: int | None) -> str:
+    """Numeração do item do PB/TR a que um bloco pertence.
+
+    O bloco pode não iniciar com numeração (é continuação de parágrafo); nesse
+    caso vale o item numerado imediatamente anterior. É o que permite citar
+    "item 6.3.1" em vez de "página 4" — num PB denso, a página não localiza o
+    trecho para quem vai corrigir.
+    """
+    if indice is None:
+        return ""
+    for bloco in reversed(doc.blocos[: indice + 1]):
+        if bloco.numeracao:
+            return bloco.numeracao
+    return ""
+
+
+def _pagina_do_offset(doc: Documento, offset: int) -> int | None:
+    i = _indice_do_offset(doc, offset)
+    return doc.blocos[i].pagina if i is not None else None
 
 
 def validar(doc: Documento, limite: int = 200) -> list[Achado]:
@@ -193,6 +235,8 @@ def validar(doc: Documento, limite: int = 200) -> list[Achado]:
             n += 1
             ini = max(0, m.start() - 60)
             fim = min(len(doc.texto), m.end() + 60)
+            indice = _indice_do_offset(doc, m.start())
+            item = item_antes_de(doc.texto, m.start()) or item_do_bloco(doc, indice)
             achados.append(
                 Achado(
                     id=f"ORT-{n:03d}",
@@ -202,7 +246,8 @@ def validar(doc: Documento, limite: int = 200) -> list[Achado]:
                     status=Status.NAO_CONFORME,
                     severidade=severidade,
                     secao="Revisão textual",
-                    pagina=_pagina_do_offset(doc, m.start()),
+                    item=item,
+                    pagina=doc.blocos[indice].pagina if indice is not None else None,
                     evidencia="..." + doc.texto[ini:fim].replace("\n", " ") + "...",
                     encontrado=m.group(0),
                     orientacao=orientacao,
@@ -227,13 +272,22 @@ class Segmento:
     id: str
     pagina: int
     texto: str
+    item: str = ""            # item do PB/TR em que o segmento começa
+    ate_item: str = ""        # último item alcançado pelo segmento
 
     def to_dict(self) -> dict[str, object]:
-        return {"id": self.id, "pagina": self.pagina, "texto": self.texto}
+        d: dict[str, object] = {"id": self.id, "pagina": self.pagina}
+        if self.item:
+            d["item"] = self.item if self.item == self.ate_item else f"{self.item} a {self.ate_item}"
+        d["texto"] = self.texto
+        return d
 
 
 def segmentar(doc: Documento, max_caracteres: int = 1200) -> list[Segmento]:
     """Agrupa o texto em segmentos revisáveis, preservando limites de parágrafo.
+
+    Cada segmento carrega o item do PB/TR que o abre e o que o fecha, para que
+    a revisão possa citar o item em vez da página.
 
     Segmentos grandes demais fazem o modelo perder trechos no meio; pequenos
     demais tiram o contexto de que ele precisa para julgar concordância e
@@ -242,28 +296,37 @@ def segmentar(doc: Documento, max_caracteres: int = 1200) -> list[Segmento]:
     segmentos: list[Segmento] = []
     atual: list[str] = []
     pagina_atual = doc.blocos[0].pagina if doc.blocos else 1
+    item_inicial = ""
+    item_atual = ""
     tamanho = 0
 
     def fechar() -> None:
-        nonlocal atual, tamanho
+        nonlocal atual, tamanho, item_inicial
         if atual:
             segmentos.append(
                 Segmento(
                     id=f"S{len(segmentos) + 1:03d}",
                     pagina=pagina_atual,
                     texto="\n".join(atual),
+                    item=item_inicial,
+                    ate_item=item_atual or item_inicial,
                 )
             )
             atual = []
             tamanho = 0
+            item_inicial = ""
 
-    for bloco in doc.blocos:
+    for i, bloco in enumerate(doc.blocos):
         texto = bloco.texto.strip()
         if not texto or RE_DESCARTAVEL.match(texto) or len(texto) < 12:
             continue
         if bloco.pagina != pagina_atual or tamanho + len(texto) > max_caracteres:
             fechar()
             pagina_atual = bloco.pagina
+        if not atual:
+            item_inicial = bloco.numeracao or item_do_bloco(doc, i)
+        if bloco.numeracao:
+            item_atual = bloco.numeracao
         atual.append(texto)
         tamanho += len(texto) + 1
 
@@ -300,6 +363,40 @@ def _achatar(texto: str) -> str:
     t = t.replace("‘", "'").replace("’", "'")
     t = t.replace("–", "-").replace("—", "-").replace("­", "")
     return re.sub(r"\s+", " ", t).strip().lower()
+
+
+def _mapa_de_blocos(doc: Documento) -> tuple[str, list[int]]:
+    """Texto achatado de todos os blocos e o offset inicial de cada um."""
+    partes: list[str] = []
+    inicios: list[int] = []
+    pos = 0
+    for bloco in doc.blocos:
+        t = _achatar(bloco.texto)
+        inicios.append(pos)
+        partes.append(t)
+        pos += len(t) + 1
+    return " ".join(partes), inicios
+
+
+def localizar_no_documento(doc: Documento, trecho: str) -> tuple[str, int | None]:
+    """Devolve (item, página) onde o trecho citado aparece.
+
+    A busca é feita sobre o texto achatado dos blocos, o que tolera a quebra de
+    linha que o PDF insere no meio da frase. Sem isso, o apontamento só poderia
+    citar a página — inútil num PB de seis páginas densas.
+    """
+    agulha = _achatar(trecho)
+    if not agulha:
+        return "", None
+    texto, inicios = _mapa_de_blocos(doc)
+    pos = texto.find(agulha)
+    if pos < 0:
+        return "", None
+    indice = bisect_right(inicios, pos) - 1
+    if indice < 0:
+        return "", None
+    item = item_antes_de(texto, pos) or item_do_bloco(doc, indice)
+    return item, doc.blocos[indice].pagina
 
 
 def converter_apontamentos(
@@ -347,9 +444,12 @@ def converter_apontamentos(
         sugestao = str(ap.get("sugestao") or "").strip()
         explicacao = str(ap.get("explicacao") or "").strip()
 
-        pagina = ap.get("pagina")
-        if not isinstance(pagina, int):
-            pagina = _pagina_do_offset(doc, doc.texto.find(trecho[:40]))
+        item, pagina_local = localizar_no_documento(doc, trecho)
+        if not isinstance(pagina_local, int):
+            pagina_local = ap.get("pagina") if isinstance(ap.get("pagina"), int) else None
+        # o item declarado pelo agente só prevalece se o localizador não achou
+        if not item and isinstance(ap.get("item"), str):
+            item = ap["item"].strip()
 
         aceitos.append(
             Achado(
@@ -360,7 +460,8 @@ def converter_apontamentos(
                 status=Status.ATENCAO,
                 severidade=severidade,
                 secao="Revisão textual",
-                pagina=pagina,
+                item=item,
+                pagina=pagina_local,
                 descricao=explicacao,
                 evidencia=trecho[:300],
                 encontrado=trecho[:200],

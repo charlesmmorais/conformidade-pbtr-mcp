@@ -125,7 +125,8 @@ def gerar_markdown(rel: Relatorio, destino: str | Path) -> str:
                     if a.encontrado:
                         L.append(f"- Encontrado: {a.encontrado}")
                     if a.evidencia:
-                        L.append(f"- Evidência (p. {a.pagina or '—'}): _{a.evidencia[:220]}_")
+                        onde = f"item {a.item}, p. {a.pagina}" if a.item else f"p. {a.pagina or '—'}"
+                        L.append(f"- Evidência ({onde}): _{a.evidencia[:220]}_")
                     if a.orientacao:
                         L.append(f"- **Recomendação:** {a.orientacao}")
                     L.append("")
@@ -161,8 +162,9 @@ def gerar_markdown(rel: Relatorio, destino: str | Path) -> str:
                         L.append(f"- Trecho: `{a.encontrado[:180]}`")
                     if a.esperado:
                         L.append(f"- Sugestão: {a.esperado[:180]}")
-                    if a.pagina:
-                        L.append(f"- Página: {a.pagina}")
+                    ref = ", ".join(x for x in (f"item {a.item}" if a.item else "", f"p. {a.pagina}" if a.pagina else "") if x)
+                    if ref:
+                        L.append(f"- Localização: {ref}")
                     if a.orientacao:
                         L.append(f"- **Recomendação:** {a.orientacao}")
                     L.append("")
@@ -180,7 +182,8 @@ def gerar_markdown(rel: Relatorio, destino: str | Path) -> str:
                 if a.encontrado:
                     L.append(f"- Encontrado: {a.encontrado}")
                 if a.evidencia:
-                    L.append(f"- Trecho (p. {a.pagina or '—'}): _{a.evidencia[:220]}_")
+                    onde = f"item {a.item}, p. {a.pagina}" if a.item else f"p. {a.pagina or '—'}"
+                    L.append(f"- Trecho ({onde}): _{a.evidencia[:220]}_")
                 if a.orientacao:
                     L.append(f"- **Recomendação:** {a.orientacao}")
                 L.append("")

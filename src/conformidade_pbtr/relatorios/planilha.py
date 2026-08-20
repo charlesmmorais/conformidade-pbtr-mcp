@@ -77,7 +77,7 @@ def gerar_xlsx(rel: Relatorio, destino: str | Path) -> str:
     ws2 = wb.create_sheet("Checklist")
     cab = [
         "ID", "Seção", "Item do roteiro", "Severidade", "Situação",
-        "Constatação", "Recomendação", "Pág.", "Responsável", "Prazo", "Status do tratamento",
+        "Constatação", "Recomendação", "Item", "Pág.", "Responsável", "Prazo", "Status do tratamento",
     ]
     ws2.append(cab)
     for c in ws2[1]:
@@ -88,7 +88,7 @@ def gerar_xlsx(rel: Relatorio, destino: str | Path) -> str:
     for a in sorted(rel.por_categoria(Categoria.CHECKLIST), key=lambda x: x.id):
         ws2.append([
             a.id, a.secao, a.titulo, a.severidade.value, ROTULO[a.status],
-            a.encontrado, a.orientacao, a.pagina or "", "", "", "Pendente",
+            a.encontrado, a.orientacao, a.item, a.pagina or "", "", "", "Pendente",
         ])
         ws2.cell(row=ws2.max_row, column=5).fill = PatternFill(
             "solid", fgColor=PREENCHIMENTO[a.status]
@@ -100,7 +100,7 @@ def gerar_xlsx(rel: Relatorio, destino: str | Path) -> str:
         allow_blank=True,
     )
     ws2.add_data_validation(dv)
-    dv.add(f"K2:K{max(ws2.max_row, 2)}")
+    dv.add(f"L2:L{max(ws2.max_row, 2)}")
 
     for linha in ws2.iter_rows(min_row=1, max_row=ws2.max_row, max_col=len(cab)):
         for c in linha:
@@ -108,12 +108,12 @@ def gerar_xlsx(rel: Relatorio, destino: str | Path) -> str:
             c.alignment = Alignment(vertical="top", wrap_text=True)
     ws2.freeze_panes = "A2"
     ws2.auto_filter.ref = f"A1:{get_column_letter(len(cab))}{ws2.max_row}"
-    _ajustar(ws2, [12, 26, 42, 12, 16, 40, 46, 7, 16, 12, 18])
+    _ajustar(ws2, [12, 26, 42, 12, 16, 40, 46, 9, 7, 16, 12, 18])
 
     # ----------------------------------------- verificações automáticas
     ws3 = wb.create_sheet("Automáticas")
     cab3 = ["ID", "Categoria", "Origem", "Título", "Situação", "Severidade",
-            "Esperado", "Encontrado", "Trecho", "Pág.", "Recomendação"]
+            "Esperado", "Encontrado", "Trecho", "Item", "Pág.", "Recomendação"]
     ws3.append(cab3)
     for c in ws3[1]:
         c.font = CABECALHO
@@ -127,7 +127,7 @@ def gerar_xlsx(rel: Relatorio, destino: str | Path) -> str:
                 a.id, cat.value,
                 "IA (sugestão)" if a.origem.value == "ia" else "determinística",
                 a.titulo, ROTULO[a.status], a.severidade.value,
-                a.esperado, a.encontrado, a.evidencia[:250], a.pagina or "", a.orientacao,
+                a.esperado, a.encontrado, a.evidencia[:250], a.item, a.pagina or "", a.orientacao,
             ])
             ws3.cell(row=ws3.max_row, column=5).fill = PatternFill(
                 "solid", fgColor=PREENCHIMENTO[a.status]
@@ -138,7 +138,7 @@ def gerar_xlsx(rel: Relatorio, destino: str | Path) -> str:
             c.alignment = Alignment(vertical="top", wrap_text=True)
     ws3.freeze_panes = "A2"
     ws3.auto_filter.ref = f"A1:{get_column_letter(len(cab3))}{ws3.max_row}"
-    _ajustar(ws3, [14, 13, 15, 40, 16, 12, 30, 30, 40, 7, 40])
+    _ajustar(ws3, [14, 13, 15, 40, 16, 12, 28, 28, 36, 9, 7, 38])
 
     wb.save(str(d))
     return str(d)

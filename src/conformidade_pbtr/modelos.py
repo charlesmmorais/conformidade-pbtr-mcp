@@ -104,6 +104,7 @@ class Achado:
     secao: str = ""
     descricao: str = ""
     evidencia: str = ""                # trecho do documento
+    item: str = ""                     # numeração do item do PB/TR (ex. "6.3.1")
     pagina: int | None = None
     esperado: str = ""
     encontrado: str = ""

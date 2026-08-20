@@ -223,6 +223,7 @@ def _sumario(rel: Relatorio, limite_pendencias: int = 40) -> dict[str, Any]:
                 "titulo": a.titulo,
                 "status": a.status.value,
                 "severidade": a.severidade.value,
+                "item": a.item,
                 "pagina": a.pagina,
                 "esperado": a.esperado,
                 "encontrado": a.encontrado,
@@ -379,9 +380,13 @@ def obter_texto_para_revisao(
     comprometem o documento — ambiguidade, vaguidão, "poderá" onde a obrigação
     exige "deverá".
 
+    Cada segmento vem com o campo `item`, que é a numeração do PB/TR onde ele
+    começa (e termina, quando o segmento atravessa mais de um item).
+
     Ao apontar, copie o trecho com erro **exatamente como está no documento**:
     `registrar_revisao_textual` confere se o trecho existe literalmente e
-    descarta o que não conferir. Não parafraseie a citação.
+    descarta o que não conferir. Não parafraseie a citação — o item do PB é
+    resolvido a partir dela, então uma citação aproximada perde a localização.
     """
     analise = _obter(chave_analise)
     if analise is None:
@@ -416,7 +421,9 @@ def registrar_revisao_textual(
                 "{'trecho': texto exato do documento, 'sugestao': correção proposta, "
                 "'tipo': ortografia|gramatica|concordancia|regencia|crase|pontuacao|"
                 "clareza|ambiguidade|impropriedade|coesao, 'explicacao': por que está errado, "
-                "'pagina': número da página (opcional)}. Lista vazia se o texto estiver correto."
+                "'item': numeração do item do PB/TR (opcional — é resolvido a partir do "
+                "trecho citado), 'pagina': número da página (opcional)}. "
+                "Lista vazia se o texto estiver correto."
             )
         ),
     ],
@@ -431,6 +438,10 @@ def registrar_revisao_textual(
     documento — os que não conferirem voltam em `recusados`, com o motivo. Isso
     impede que uma citação imprecisa vire achado num relatório que instrui
     processo administrativo.
+
+    O item do PB/TR de cada apontamento é resolvido automaticamente a partir do
+    trecho citado — o relatório mostra "item 6.3.1" em vez de só a página, que
+    num documento denso não localiza nada.
 
     Os apontamentos entram no relatório como *sugestão de revisão*, separados
     dos achados determinísticos e fora do índice de conformidade.
@@ -691,7 +702,8 @@ def prompt_conduzir(caminho_arquivo: str = "", tipo: str = "PB") -> str:
    - incoerência entre trechos (prazo citado em duas seções com valores
      diferentes, por exemplo).
    Copie cada trecho problemático **exatamente como está no documento** — a
-   citação é conferida contra o texto e apontamento que não bate é descartado.
+   citação é conferida contra o texto, apontamento que não bate é descartado, e
+   é dela que sai o número do item do PB citado no relatório.
 
 4. `registrar_revisao_textual` com os apontamentos e os formatos desejados.
    Confira o campo `recusados`: se houver, corrija as citações e chame de novo.

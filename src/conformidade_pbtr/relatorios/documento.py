@@ -233,7 +233,7 @@ def gerar_docx(rel: Relatorio, destino: str | Path) -> str:
                     for rotulo, valor in [
                         ("Trecho", a.encontrado),
                         ("Sugestão", a.esperado),
-                        ("Página", str(a.pagina) if a.pagina else ""),
+                        ("Localização", ", ".join(x for x in ((f"item {a.item}" if a.item else ""), (f"p. {a.pagina}" if a.pagina else "")) if x)),
                         ("Observação", a.descricao),
                         ("Recomendação", a.orientacao),
                     ]:
@@ -253,7 +253,7 @@ def gerar_docx(rel: Relatorio, destino: str | Path) -> str:
                 for rotulo, valor in [
                     ("Esperado", a.esperado),
                     ("Encontrado", a.encontrado),
-                    ("Trecho", f"(p. {a.pagina or '—'}) {a.evidencia[:300]}" if a.evidencia else ""),
+                    ("Trecho", (f"(item {a.item}, p. {a.pagina}) " if a.item else f"(p. {a.pagina or '—'}) ") + a.evidencia[:300] if a.evidencia else ""),
                     ("Recomendação", a.orientacao),
                 ]:
                     if valor:

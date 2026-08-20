@@ -16,6 +16,7 @@ import yaml
 from ..caminhos import caminho_checklist
 from ..extratores.pdf import normalizar
 from ..modelos import Achado, Categoria, Documento, Severidade, Status
+from .ortografia import item_antes_de, item_do_bloco
 
 VERIFICACAO_MANUAL = {"coerencia", "anexo", "manual"}
 
@@ -54,18 +55,21 @@ def _casar(gatilhos: list[str], texto_norm: str) -> list[str]:
     return casados
 
 
-def _evidencia(doc: Documento, padrao: str) -> tuple[str, int | None]:
-    """Localiza o primeiro bloco que casa com o padrão, para citar no relatório."""
+def _evidencia(doc: Documento, padrao: str) -> tuple[str, int | None, str]:
+    """Primeiro bloco que casa com o padrão: (trecho, página, item do PB/TR)."""
     p = normalizar(padrao)
     janela = 2  # tolera expressão partida entre linhas
     for i, bloco in enumerate(doc.blocos):
         trecho = " ".join(b.texto for b in doc.blocos[i : i + janela])
         try:
-            if re.search(p, re.sub(r"\s+", " ", normalizar(trecho)), re.IGNORECASE):
-                return bloco.texto[:300], bloco.pagina
+            achatado = re.sub(r"\s+", " ", normalizar(trecho))
+            m = re.search(p, achatado, re.IGNORECASE)
+            if m:
+                item = item_antes_de(achatado, m.start()) or item_do_bloco(doc, i)
+                return bloco.texto[:300], bloco.pagina, item
         except re.error:
             break
-    return "", None
+    return "", None, ""
 
 
 def validar(doc: Documento, checklist: str | None = None) -> tuple[list[Achado], str]:
@@ -126,9 +130,9 @@ def validar(doc: Documento, checklist: str | None = None) -> tuple[list[Achado],
         if inverter:
             # a regra é uma vedação: casar o gatilho é o sinal de alerta
             if casados:
-                evid, pag = _evidencia(doc, casados[0])
+                evid, pag, item = _evidencia(doc, casados[0])
                 achados.append(
-                    Achado(**base, status=Status.ATENCAO, pagina=pag, evidencia=evid,
+                    Achado(**base, status=Status.ATENCAO, pagina=pag, item=item, evidencia=evid,
                            esperado="ausência da hipótese vedada ou justificativa específica",
                            encontrado=f"ocorrência de: {casados[0]}")
                 )
@@ -141,21 +145,21 @@ def validar(doc: Documento, checklist: str | None = None) -> tuple[list[Achado],
         faltantes = [g for g in gatilhos if g not in casados]
 
         if atende and verificacao in VERIFICACAO_MANUAL:
-            evid, pag = _evidencia(doc, casados[0])
+            evid, pag, item = _evidencia(doc, casados[0])
             achados.append(
-                Achado(**base, status=Status.VERIFICAR_MANUAL, pagina=pag, evidencia=evid,
+                Achado(**base, status=Status.VERIFICAR_MANUAL, pagina=pag, item=item, evidencia=evid,
                        encontrado="Indício localizado no texto; a aderência exige conferência humana.")
             )
         elif atende:
-            evid, pag = _evidencia(doc, casados[0])
+            evid, pag, item = _evidencia(doc, casados[0])
             achados.append(
-                Achado(**base, status=Status.CONFORME, pagina=pag, evidencia=evid,
+                Achado(**base, status=Status.CONFORME, pagina=pag, item=item, evidencia=evid,
                        encontrado=f"{len(casados)}/{len(gatilhos)} indício(s) localizado(s)")
             )
         elif casados and exige_todos:
-            evid, pag = _evidencia(doc, casados[0])
+            evid, pag, item = _evidencia(doc, casados[0])
             achados.append(
-                Achado(**base, status=Status.ATENCAO, pagina=pag, evidencia=evid,
+                Achado(**base, status=Status.ATENCAO, pagina=pag, item=item, evidencia=evid,
                        esperado=f"todos os elementos: {', '.join(gatilhos)}",
                        encontrado=f"ausentes: {', '.join(faltantes)}")
             )

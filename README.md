@@ -67,6 +67,11 @@ onde está o erro, o apontamento é descartado e devolvido em `recusados`, com o
 motivo — é o que separa uma revisão útil de uma alucinação num relatório que
 instrui processo administrativo.
 
+Todo achado cita o **item do PB/TR** ("item 6.3.1"), não só a página — num
+documento denso, a página não localiza o trecho para quem vai corrigir. O item
+é resolvido a partir da citação, e não do que o modelo declara: se ele errar a
+numeração, vale o que o documento diz.
+
 No relatório, essas sugestões aparecem em seção própria, marcadas como não
 reprodutíveis, e **ficam fora do índice de conformidade**. Verificação exata e
 sugestão de leitura têm pesos diferentes para quem assina o parecer.
