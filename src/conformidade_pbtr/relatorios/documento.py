@@ -76,6 +76,7 @@ def gerar_docx(rel: Relatorio, destino: str | Path) -> str:
     for rotulo, valor in [
         ("Documento", rel.documento.nome),
         ("Tipo", rel.documento.tipo),
+        ("Formato analisado", f".{rel.documento.formato}"),
         ("Páginas", str(rel.documento.paginas)),
         ("Tabelas detectadas", str(len(rel.documento.tabelas))),
         ("Contexto inferido", ", ".join(rel.documento.tags_contexto)),

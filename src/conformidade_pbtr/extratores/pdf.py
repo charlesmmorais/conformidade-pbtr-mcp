@@ -64,7 +64,7 @@ def _limpar(celula) -> str:
 def extrair(caminho: str | Path, tipo: str = "PB") -> Documento:
     """Lê o PDF e devolve um Documento com blocos e tabelas normalizados."""
     caminho = Path(caminho)
-    doc = Documento(caminho=str(caminho), nome=caminho.name, tipo=tipo)
+    doc = Documento(caminho=str(caminho), nome=caminho.name, tipo=tipo, formato="pdf")
 
     partes_texto: list[str] = []
     ordem = 0
@@ -129,7 +129,7 @@ def extrair_docx(caminho: str | Path, tipo: str = "PB") -> Documento:
     from docx import Document as Docx
 
     caminho = Path(caminho)
-    doc = Documento(caminho=str(caminho), nome=caminho.name, tipo=tipo, paginas=1)
+    doc = Documento(caminho=str(caminho), nome=caminho.name, tipo=tipo, paginas=1, formato="docx")
     d = Docx(str(caminho))
     partes = []
     for ordem, p in enumerate(d.paragraphs, start=1):
@@ -166,11 +166,28 @@ def extrair_docx(caminho: str | Path, tipo: str = "PB") -> Documento:
     return doc
 
 
+#: extensões aceitas na entrada
+FORMATOS_ACEITOS = (".pdf", ".docx", ".md", ".markdown", ".txt")
+
+
 def carregar(caminho: str | Path, tipo: str = "PB") -> Documento:
-    """Despacha para o extrator conforme a extensão do arquivo."""
+    """Despacha para o extrator conforme a extensão do arquivo.
+
+    PDF é o documento de fé, mas custa caro: um PB de 57 páginas leva dezenas
+    de segundos e centenas de MB. Markdown e texto são ordens de grandeza mais
+    baratos — a ressalva é que costumam ser conversão do PDF oficial, e o que a
+    conversão perde some sem aviso. Por isso o formato fica registrado no
+    Documento e aparece no relatório.
+    """
     ext = Path(caminho).suffix.lower()
     if ext == ".pdf":
         return extrair(caminho, tipo)
     if ext in (".docx", ".doc"):
         return extrair_docx(caminho, tipo)
-    raise ValueError(f"Formato não suportado: {ext}. Use .pdf ou .docx.")
+    if ext in (".md", ".markdown", ".txt"):
+        from .texto import extrair as extrair_texto
+
+        return extrair_texto(caminho, tipo)
+    raise ValueError(
+        f"Formato não suportado: {ext}. Aceitos: {', '.join(FORMATOS_ACEITOS)}."
+    )

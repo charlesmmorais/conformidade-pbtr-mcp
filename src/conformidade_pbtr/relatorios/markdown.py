@@ -51,7 +51,7 @@ def gerar_markdown(rel: Relatorio, destino: str | Path) -> str:
     L.append(f"# Relatório de Análise de Conformidade — {rel.documento.tipo}")
     L.append("")
     L.append(f"**Documento analisado:** {rel.documento.nome}  ")
-    L.append(f"**Páginas:** {rel.documento.paginas} · **Tabelas detectadas:** {len(rel.documento.tabelas)}  ")
+    L.append(f"**Formato analisado:** .{rel.documento.formato} · **Páginas:** {rel.documento.paginas} · **Tabelas detectadas:** {len(rel.documento.tabelas)}  ")
     L.append(f"**Gerado em:** {rel.gerado_em} · **Checklist v{rel.versao_checklist}**  ")
     L.append(f"**Contexto inferido:** {', '.join(rel.documento.tags_contexto)}")
     L.append("")

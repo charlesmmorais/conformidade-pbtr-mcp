@@ -76,6 +76,17 @@ No relatório, essas sugestões aparecem em seção própria, marcadas como não
 reprodutíveis, e **ficam fora do índice de conformidade**. Verificação exata e
 sugestão de leitura têm pesos diferentes para quem assina o parecer.
 
+## Formatos de entrada
+
+| Formato | Quando usar |
+|---|---|
+| `.pdf` | O documento como sai do sistema. É o mais lento: 57 páginas levam dezenas de segundos e centenas de MB. |
+| `.docx` | Rápido e preserva tabelas e numeração. |
+| `.md` / `.txt` | O mais barato — no PB 872, 17× mais rápido que o PDF com **resultado idêntico** (98 achados iguais, mesmo índice, mesmos itens citados). |
+
+Em Markdown as tabelas precisam do formato de pipes com linha separadora; sem
+tabela reconhecida, a validação aritmética não roda e o relatório avisa.
+
 ## Instalação
 
 Requisito único: Python 3.11+. Não há dependência de Java nem de serviço externo.

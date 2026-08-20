@@ -82,7 +82,7 @@ def gerar_pdf(rel: Relatorio, destino: str | Path) -> str:
     fluxo = []
     fluxo.append(Paragraph("Relatório de Análise de Conformidade", st_titulo))
     fluxo.append(Paragraph(
-        f"<b>{_escapar(rel.documento.nome)}</b> — {rel.documento.tipo} · "
+        f"<b>{_escapar(rel.documento.nome)}</b> — {rel.documento.tipo} · .{rel.documento.formato} · "
         f"{rel.documento.paginas} página(s) · gerado em {rel.gerado_em} · "
         f"checklist v{rel.versao_checklist}", st_corpo))
     fluxo.append(Spacer(1, 10))

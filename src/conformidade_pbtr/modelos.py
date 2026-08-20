@@ -84,6 +84,7 @@ class Documento:
     caminho: str
     nome: str
     tipo: str = "PB"                  # PB | TR
+    formato: str = "pdf"              # pdf | docx | md | txt
     paginas: int = 0
     texto: str = ""
     blocos: list[Bloco] = field(default_factory=list)
@@ -165,6 +166,7 @@ class Relatorio:
             "documento": {
                 "nome": self.documento.nome,
                 "tipo": self.documento.tipo,
+                "formato": self.documento.formato,
                 "paginas": self.documento.paginas,
                 "tags_contexto": self.documento.tags_contexto,
                 "tabelas_detectadas": len(self.documento.tabelas),

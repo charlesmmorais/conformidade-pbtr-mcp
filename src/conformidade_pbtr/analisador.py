@@ -91,10 +91,17 @@ def analisar(
     if revisar_texto:
         rel.achados.extend(ortografia.validar(doc, limite_ortografia))
 
-    if doc.paginas and len(doc.texto.strip()) < 200 * doc.paginas:
+    if doc.formato == "pdf" and doc.paginas and len(doc.texto.strip()) < 200 * doc.paginas:
         rel.avisos.append(
             "Pouco texto extraído por página — o PDF pode ser digitalizado. "
             "Recomenda-se aplicar OCR antes da análise."
+        )
+
+    if doc.formato in ("md", "markdown", "txt") and not doc.tabelas:
+        rel.avisos.append(
+            "Nenhuma tabela reconhecida no arquivo: a validação aritmética não "
+            "rodou. Em Markdown as tabelas precisam do formato de pipes "
+            "(| coluna | coluna |) com a linha separadora abaixo do cabeçalho."
         )
 
     rel.resumo = _calcular_resumo(rel)

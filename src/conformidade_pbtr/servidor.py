@@ -35,6 +35,7 @@ from pydantic import Field
 from . import analisador
 from .caminhos import checklists_disponiveis
 from .extratores import pdf as extrator
+from .extratores.pdf import FORMATOS_ACEITOS
 from .modelos import Origem, Relatorio, Status
 from .relatorios import FORMATOS
 from .validadores import checklist as mod_checklist
@@ -160,8 +161,10 @@ def _materializar(
     """
     if conteudo_base64:
         nome = nome_arquivo or "documento.pdf"
-        if Path(nome).suffix.lower() not in (".pdf", ".docx"):
-            return None, "nome_arquivo deve terminar em .pdf ou .docx", None
+        if Path(nome).suffix.lower() not in FORMATOS_ACEITOS:
+            return None, (
+                "nome_arquivo deve terminar em " + ", ".join(FORMATOS_ACEITOS)
+            ), None
         try:
             dados = base64.b64decode(conteudo_base64, validate=True)
         except (binascii.Error, ValueError) as exc:
@@ -243,15 +246,15 @@ def _sumario(rel: Relatorio, limite_pendencias: int = 40) -> dict[str, Any]:
 def analisar_conformidade(
     caminho_arquivo: Annotated[
         str | None,
-        Field(description="Caminho do PDF/DOCX no servidor. Só funciona em execução local."),
+        Field(description="Caminho do arquivo no servidor (.pdf, .docx, .md ou .txt). Só em execução local."),
     ] = None,
     conteudo_base64: Annotated[
         str | None,
-        Field(description="Conteúdo do PDF/DOCX em base64. Use em servidor remoto."),
+        Field(description="Conteúdo do documento em base64. Use em servidor remoto."),
     ] = None,
     nome_arquivo: Annotated[
         str | None,
-        Field(description="Nome do arquivo (com .pdf ou .docx) quando usar conteudo_base64."),
+        Field(description="Nome do arquivo com extensão (.pdf, .docx, .md, .txt) quando usar conteudo_base64."),
     ] = None,
     tipo: Annotated[Literal["PB", "TR"], Field(description="Tipo do documento.")] = "PB",
     formatos: Annotated[
@@ -278,6 +281,11 @@ def analisar_conformidade(
     diretorio_saida: Annotated[str | None, Field(description="Onde gravar os relatórios.")] = None,
 ) -> dict[str, Any]:
     """Passo 1 de 3. Roda a análise determinística do PB/TR.
+
+    Aceita .pdf, .docx, .md e .txt. Markdown e texto são muito mais rápidos que
+    PDF — um PB de 57 páginas leva dezenas de segundos em PDF e frações de
+    segundo em texto. Se o arquivo de texto vier sem tabela, o relatório avisa,
+    porque a validação aritmética depende delas.
 
     Verifica os itens do checklist normativo, a numeração hierárquica, a
     aritmética das tabelas e os valores declarados, além das regras
@@ -481,7 +489,7 @@ def registrar_revisao_textual(
 
 @mcp.tool
 def verificar_numeracao(
-    caminho_arquivo: Annotated[str, Field(description="Caminho do PDF/DOCX do PB/TR.")],
+    caminho_arquivo: Annotated[str, Field(description="Caminho do PB/TR (.pdf, .docx, .md ou .txt).")],
 ) -> dict[str, Any]:
     """Verifica apenas a numeração hierárquica dos itens (saltos, duplicidades,
     subitens órfãos, itens fora de ordem e seções obrigatórias ausentes)."""
@@ -500,7 +508,7 @@ def verificar_numeracao(
 
 @mcp.tool
 def validar_tabelas(
-    caminho_arquivo: Annotated[str, Field(description="Caminho do PDF/DOCX do PB/TR.")],
+    caminho_arquivo: Annotated[str, Field(description="Caminho do PB/TR (.pdf, .docx, .md ou .txt).")],
 ) -> dict[str, Any]:
     """Valida as tabelas de preços: colunas mínimas, Quantidade x Valor Unitário
     = Valor Total, fechamento do somatório, coerência mensal, valor por extenso
@@ -521,7 +529,7 @@ def validar_tabelas(
 
 @mcp.tool
 def revisar_ortografia(
-    caminho_arquivo: Annotated[str, Field(description="Caminho do PDF/DOCX do PB/TR.")],
+    caminho_arquivo: Annotated[str, Field(description="Caminho do PB/TR (.pdf, .docx, .md ou .txt).")],
     limite: Annotated[int, Field(description="Máximo de apontamentos.", ge=1, le=1000)] = 200,
     incluir_texto: Annotated[
         bool, Field(description="Devolver também o texto segmentado, para você revisar.")
@@ -552,7 +560,7 @@ def revisar_ortografia(
 
 @mcp.tool
 def extrair_estrutura(
-    caminho_arquivo: Annotated[str, Field(description="Caminho do PDF/DOCX do PB/TR.")],
+    caminho_arquivo: Annotated[str, Field(description="Caminho do PB/TR (.pdf, .docx, .md ou .txt).")],
     incluir_texto: Annotated[bool, Field(description="Devolver também o texto integral.")] = False,
 ) -> dict[str, Any]:
     """Diagnóstico de extração: seções numeradas, tabelas e contexto inferido.

@@ -41,6 +41,13 @@ Reinicie o Claude Desktop. Os relatórios vão cair na pasta indicada em
 
 ## 2. O que digitar no chat
 
+> **Qual formato enviar?** Aceita `.pdf`, `.docx`, `.md` e `.txt`. O PDF do
+> Hisaq funciona direto, mas é o mais lento — um PB de 57 páginas leva dezenas
+> de segundos. Se você já tiver o texto em Markdown ou DOCX, use: no PB 872 o
+> resultado foi idêntico (98 achados iguais, mesmo índice) e 17× mais rápido.
+> Só confira se as tabelas vieram junto — sem elas a conferência aritmética não
+> roda, e o relatório avisa quando isso acontece.
+
 ### 2.1. O pedido — versão curta
 
 Anexe o PDF e diga:

@@ -48,6 +48,7 @@ def gerar_xlsx(rel: Relatorio, destino: str | Path) -> str:
     linhas = [
         ("Documento", rel.documento.nome),
         ("Tipo", rel.documento.tipo),
+        ("Formato analisado", f".{rel.documento.formato}"),
         ("Páginas", rel.documento.paginas),
         ("Tabelas detectadas", len(rel.documento.tabelas)),
         ("Contexto inferido", ", ".join(rel.documento.tags_contexto)),
