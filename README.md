@@ -193,6 +193,7 @@ alteração de código. O formato está em [`docs/CHECKLIST.md`](docs/CHECKLIST.
 
 ## Documentação
 
+- [`docs/MANUAL.md`](docs/MANUAL.md) — micro manual de uso, para quem vai analisar
 - [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md) — decisões de projeto, modelo de dados e roadmap
 - [`docs/CHECKLIST.md`](docs/CHECKLIST.md) — formato do YAML e como escrever bons gatilhos
 - [`docs/DEPLOY.md`](docs/DEPLOY.md) — deploy no Fly.io, modo remoto e variáveis de ambiente
