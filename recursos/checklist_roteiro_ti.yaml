@@ -18,7 +18,7 @@
 # ---------------------------------------------------------------------------
 
 metadata:
-  versao: "1.1.0"
+  versao: "1.2.0"
   data_base: "2026-08-19"
   fonte: "[TI] Roteiro - Projetos Básicos e Termos de Referência (1).docx"
   responsavel: "DIRAF/SUPGA/GACON/GACOA - Divisão de Conformidade Administrativa"
@@ -369,7 +369,7 @@ regras:
     severidade: critico
     verificacao: presenca
     gatilhos:
-      - "penalidade|multa|san[cç][aã]o|glosa"
+      - "penalidade|multa|san[cç][aã]o|glosa|ser[aá] descontad|desconto de \\d|descontado(s)? \\d"
     orientacao: >-
       Prever penalidades com base de cálculo, percentual/valor e evento
       gerador definidos objetivamente.
@@ -933,7 +933,7 @@ regras:
     severidade: critico
     verificacao: presenca
     gatilhos:
-      - "escolha do fornecedor|justificativa .{0,25}fornecedor"
+      - "escolha do (fornecedor|contratad)|justificativa .{0,25}fornecedor|[uú]nica empresa|forma [uú]nica e exclusiva|fornecedor exclusivo|detentora integral"
     orientacao: "Justificar objetivamente a escolha do fornecedor."
 
   - id: PB-06-007
@@ -1029,7 +1029,7 @@ regras:
     severidade: critico
     verificacao: presenca
     gatilhos:
-      - "pesquisa de pre[cç]os?"
+      - "pesquisas? de pre[cç]os?|s[eé]rie de pre[cç]os|cesta de pre[cç]os"
     orientacao: >-
       Descrever a metodologia da pesquisa de preços e as fontes utilizadas,
       conforme a LA 002.

@@ -288,12 +288,18 @@ TIPOS = {
 
 
 def _achatar(texto: str) -> str:
-    """Normaliza espaçamento e aspas para comparar o trecho citado com o texto."""
+    """Normaliza para comparar o trecho citado com o texto do documento.
+
+    Colapsa espaçamento (o PDF quebra linhas no meio da frase), uniformiza
+    aspas e travessões e ignora caixa. Diferença de maiúscula ("Art." x "art.")
+    é variação tipográfica, não sinal de citação inventada — barrar por isso
+    descartaria apontamento legítimo.
+    """
     t = unicodedata.normalize("NFKC", texto)
     t = t.replace("“", '"').replace("”", '"')
     t = t.replace("‘", "'").replace("’", "'")
     t = t.replace("–", "-").replace("—", "-").replace("­", "")
-    return re.sub(r"\s+", " ", t).strip()
+    return re.sub(r"\s+", " ", t).strip().lower()
 
 
 def converter_apontamentos(
