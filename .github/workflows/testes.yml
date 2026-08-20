@@ -37,3 +37,44 @@ jobs:
 
       - name: Lint
         run: ruff check .
+
+  empacotamento:
+    # Os testes rodam a partir de src/ e não enxergam problema de empacotamento:
+    # um arquivo fora do git ou excluído do wheel passa despercebido até o deploy.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Conferir que todo módulo está versionado
+        run: |
+          faltando=$(comm -23 \
+            <(find src -name '*.py' | sort) \
+            <(git ls-files 'src/**/*.py' | sort))
+          if [ -n "$faltando" ]; then
+            echo "Arquivos fora do git (verifique o .gitignore):"
+            echo "$faltando"
+            exit 1
+          fi
+
+      - name: Construir o wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --wheel
+
+      - name: Instalar em ambiente limpo e importar
+        run: |
+          python -m venv /tmp/venv
+          /tmp/venv/bin/pip install dist/*.whl
+          cd /   # fora da árvore do código, para não importar de src/
+          /tmp/venv/bin/python -c "
+          from conformidade_pbtr.servidor import mcp, main
+          from conformidade_pbtr.relatorios import FORMATOS
+          from conformidade_pbtr.caminhos import caminho_checklist
+          assert sorted(FORMATOS) == ['docx','json','markdown','md','pdf','xlsx']
+          assert caminho_checklist().exists()
+          print('pacote íntegro')
+          "

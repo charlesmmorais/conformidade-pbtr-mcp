@@ -1,12 +1,16 @@
+# Padrões ancorados na raiz com "/" — sem a barra inicial, o gitignore casa em
+# QUALQUER nível, e "relatorios/" chegou a excluir src/conformidade_pbtr/relatorios/
+# do repositório e do wheel.
 __pycache__/
 *.py[cod]
-.venv/
-venv/
-.pytest_cache/
-.ruff_cache/
 *.egg-info/
-dist/
-build/
-exemplos/saida/
-relatorios/
 .env
+
+/.venv/
+/venv/
+/.pytest_cache/
+/.ruff_cache/
+/dist/
+/build/
+/relatorios/
+/exemplos/saida/

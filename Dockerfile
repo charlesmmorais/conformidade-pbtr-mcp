@@ -27,6 +27,17 @@ COPY src ./src
 COPY recursos ./recursos
 RUN pip install --no-cache-dir .
 
+# Confere a instalação a partir de /, fora da árvore do código: um subpacote
+# que não tenha entrado no wheel quebra AQUI, no build, em vez de só aparecer
+# no primeiro boot em produção.
+RUN cd / && python -c "\
+from conformidade_pbtr.servidor import mcp, main; \
+from conformidade_pbtr.relatorios import FORMATOS; \
+from conformidade_pbtr.caminhos import caminho_checklist; \
+assert sorted(FORMATOS) == ['docx','json','markdown','md','pdf','xlsx'], FORMATOS; \
+assert caminho_checklist().exists(); \
+print('instalação verificada')"
+
 RUN useradd --create-home --uid 10001 appuser
 USER appuser
 
